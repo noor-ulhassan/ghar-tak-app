@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, ordersTable, productsTable, providersTable } from "@workspace/db";
+import { addressesTable, db, ordersTable, productsTable, providersTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
@@ -62,6 +62,8 @@ function mapOrder(o: any) {
     total: Number(o.total),
     paymentMethod: o.paymentMethod,
     deliveryAddress: o.deliveryAddress ?? null,
+    deliveryPhone: o.deliveryPhone ?? null,
+    deliveryInstructions: o.deliveryInstructions ?? null,
     notes: o.notes ?? null,
     items: Array.isArray(o.items) ? o.items : [],
     deliveryFee: Number(o.deliveryFee ?? 0),
@@ -108,6 +110,29 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
 
   try {
     const customer = await ensureUser(clerkUserId);
+
+    // A saved address gives the store a street, a phone number and directions.
+    let delivery = {
+      deliveryAddress: body.deliveryAddress ?? null,
+      deliveryPhone: customer.phone,
+      deliveryInstructions: null as string | null,
+    };
+    if (body.addressId) {
+      const [address] = await db
+        .select()
+        .from(addressesTable)
+        .where(and(eq(addressesTable.id, body.addressId), eq(addressesTable.userId, clerkUserId)))
+        .limit(1);
+      if (!address) {
+        res.status(400).json({ error: "That address isn't saved on your account." });
+        return;
+      }
+      delivery = {
+        deliveryAddress: [address.line1, address.city].filter(Boolean).join(", "),
+        deliveryPhone: address.phone ?? customer.phone,
+        deliveryInstructions: address.instructions,
+      };
+    }
 
     // One transaction: the stock checks, the stock decrease and the order
     // all save together, or none of them do.
@@ -188,7 +213,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
           status: "pending",
           total: String(total),
           paymentMethod: body.paymentMethod ?? "cash_on_delivery",
-          deliveryAddress: body.deliveryAddress ?? null,
+          ...delivery,
           notes: body.notes ?? null,
           items,
           deliveryFee: String(deliveryFee),

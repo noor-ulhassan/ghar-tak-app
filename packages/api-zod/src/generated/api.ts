@@ -435,6 +435,8 @@ export const ListMyOrdersResponseItem = zod.object({
   "total": zod.number(),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryPhone": zod.string().nullish(),
+  "deliveryInstructions": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.string().nullable(),
@@ -478,6 +480,7 @@ export const CreateOrderBody = zod.object({
   "unitPrice": zod.number().min(createOrderBodyItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })).min(1),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
+  "addressId": zod.string().optional().describe('One of the customer\'s saved addresses. Its street, city, phone and instructions are copied onto the order, and deliveryAddress is ignored.'),
   "deliveryAddress": zod.string().optional(),
   "notes": zod.string().optional(),
   "deliveryFee": zod.number().min(createOrderBodyDeliveryFeeMin).optional().describe('Ignored; the server calculates the delivery fee.'),
@@ -507,6 +510,8 @@ export const GetOrderResponse = zod.object({
   "total": zod.number(),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryPhone": zod.string().nullish(),
+  "deliveryInstructions": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.string().nullable(),
@@ -553,6 +558,8 @@ export const UpdateOrderStatusResponse = zod.object({
   "total": zod.number(),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryPhone": zod.string().nullish(),
+  "deliveryInstructions": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.string().nullable(),
@@ -591,6 +598,8 @@ export const ListProviderOrdersResponseItem = zod.object({
   "total": zod.number(),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryPhone": zod.string().nullish(),
+  "deliveryInstructions": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "items": zod.array(zod.object({
   "productId": zod.string().nullable(),

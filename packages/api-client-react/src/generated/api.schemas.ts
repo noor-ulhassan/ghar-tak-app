@@ -283,6 +283,10 @@ export interface Order {
   /** @nullable */
   deliveryAddress?: string | null;
   /** @nullable */
+  deliveryPhone?: string | null;
+  /** @nullable */
+  deliveryInstructions?: string | null;
+  /** @nullable */
   notes?: string | null;
   items: OrderItem[];
   deliveryFee: number;
@@ -310,6 +314,8 @@ export interface CreateOrderRequest {
   /** @minItems 1 */
   items: OrderItem[];
   paymentMethod: CreateOrderRequestPaymentMethod;
+  /** One of the customer's saved addresses. Its street, city, phone and instructions are copied onto the order, and deliveryAddress is ignored. */
+  addressId?: string;
   deliveryAddress?: string;
   notes?: string;
   /**

@@ -1379,6 +1379,10 @@ components:
           enum: [cash_on_delivery, jazzcash, easypaisa, card]
         deliveryAddress:
           type: [string, "null"]
+        deliveryPhone:
+          type: [string, "null"]
+        deliveryInstructions:
+          type: [string, "null"]
         notes:
           type: [string, "null"]
         items:
@@ -1427,6 +1431,9 @@ components:
         paymentMethod:
           type: string
           enum: [cash_on_delivery, jazzcash, easypaisa, card]
+        addressId:
+          type: string
+          description: One of the customer's saved addresses. Its street, city, phone and instructions are copied onto the order, and deliveryAddress is ignored.
         deliveryAddress:
           type: string
         notes:

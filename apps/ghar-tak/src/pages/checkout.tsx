@@ -249,6 +249,7 @@ export default function CheckoutPage() {
       data: {
         providerId,
         paymentMethod: paymentMethod as (typeof CreateOrderRequestPaymentMethod)[keyof typeof CreateOrderRequestPaymentMethod],
+        addressId: selectedAddress.id,
         deliveryAddress: addressSummary,
         notes: notes.trim() || undefined,
         deliveryFee,

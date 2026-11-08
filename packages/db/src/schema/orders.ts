@@ -15,6 +15,9 @@ export const ordersTable = pgTable(
     total: numeric("total", { precision: 10, scale: 2 }).notNull(),
     paymentMethod: varchar("payment_method", { length: 50 }).notNull().default("cash_on_delivery"),
     deliveryAddress: text("delivery_address"),
+    // Copied from the customer's saved address, so the store can call and find them.
+    deliveryPhone: varchar("delivery_phone", { length: 50 }),
+    deliveryInstructions: text("delivery_instructions"),
     notes: text("notes"),
     items: jsonb("items").notNull().default([]),
     deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).notNull().default("0"),

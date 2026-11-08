@@ -14,6 +14,8 @@ export interface CreateOrderRequest {
   /** @minItems 1 */
   items: OrderItem[];
   paymentMethod: CreateOrderRequestPaymentMethod;
+  /** One of the customer's saved addresses. Its street, city, phone and instructions are copied onto the order, and deliveryAddress is ignored. */
+  addressId?: string;
   deliveryAddress?: string;
   notes?: string;
   /**

@@ -203,6 +203,64 @@ describe("orders", () => {
     });
   });
 
+  describe("delivery details", () => {
+    async function saveAddress(as: string, fields: Record<string, unknown> = {}) {
+      const res = await api()
+        .post("/api/addresses")
+        .set(SIGNED_IN_AS, as)
+        .send({
+          line1: "House 12, Street 4, Gulberg III",
+          city: "Lahore",
+          phone: "0300 1234567",
+          instructions: "Green gate, ring twice",
+          ...fields,
+        });
+      return res.body.id as string;
+    }
+
+    it("copies the saved address, phone and instructions onto the order", async () => {
+      const { store, milk } = await storeWithMilk();
+      const addressId = await saveAddress(CUSTOMER);
+
+      const placed = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId, deliveryAddress: "ignored" }));
+      expect(placed.status).toBe(201);
+      expect(placed.body).toMatchObject({
+        deliveryAddress: "House 12, Street 4, Gulberg III, Lahore",
+        deliveryPhone: "0300 1234567",
+        deliveryInstructions: "Green gate, ring twice",
+      });
+
+      const incoming = await api().get("/api/provider-orders").set(SIGNED_IN_AS, SELLER);
+      expect(incoming.body[0].deliveryPhone).toBe("0300 1234567");
+    });
+
+    it("falls back to the profile phone when the address has none", async () => {
+      const { store, milk } = await storeWithMilk();
+      await api().patch("/api/auth/me").set(SIGNED_IN_AS, CUSTOMER).send({ phone: "0321 7654321" });
+      const addressId = await saveAddress(CUSTOMER, { phone: undefined });
+
+      const placed = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId }));
+      expect(placed.body.deliveryPhone).toBe("0321 7654321");
+    });
+
+    it("refuses someone else's saved address", async () => {
+      const { store, milk } = await storeWithMilk();
+      const theirs = await saveAddress("other-customer");
+
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId: theirs }));
+      expect(res.status).toBe(400);
+    });
+  });
+
   it("applies a valid coupon to the total", async () => {
     const { store, milk } = await storeWithMilk();
     await createCoupon({ code: "WELCOME10", type: "percent", value: "10" });
