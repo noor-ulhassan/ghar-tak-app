@@ -297,7 +297,7 @@ export const updateProductBodyStockMin = 0;
 
 export const UpdateProductBody = zod.object({
   "name": zod.string().min(1).optional(),
-  "description": zod.string().optional(),
+  "description": zod.string().nullish(),
   "price": zod.number().min(updateProductBodyPriceMin).optional(),
   "stock": zod.number().min(updateProductBodyStockMin).optional(),
   "sku": zod.string().optional(),
@@ -377,10 +377,14 @@ export const UpdateServiceParams = zod.object({
   "serviceId": zod.coerce.string()
 })
 
+
+
+
+
 export const UpdateServiceBody = zod.object({
-  "name": zod.string().optional(),
-  "description": zod.string().optional(),
-  "priceRange": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().nullish(),
+  "priceRange": zod.string().min(1).optional(),
   "duration": zod.string().optional(),
   "category": zod.string().optional(),
   "isAvailable": zod.boolean().optional()

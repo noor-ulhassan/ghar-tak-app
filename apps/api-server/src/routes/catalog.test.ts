@@ -68,6 +68,53 @@ describe("products and services", () => {
     expect(edit.status).toBe(401);
   });
 
+  it("keeps a product in its own store when the owner edits it", async () => {
+    const mine = await createProvider(SELLER);
+    const rival = await createProvider("rival-seller", { name: "Rival Store" });
+    const milk = await createProduct(mine.id);
+
+    const res = await api()
+      .patch(`/api/products/${milk.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ price: 200, providerId: rival.id, id: "new-id" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: milk.id, providerId: mine.id, price: 200 });
+
+    const rivalProducts = await api().get(`/api/providers/${rival.id}/products`);
+    expect(rivalProducts.body).toEqual([]);
+  });
+
+  it("accepts a cleared description and rejects a fractional stock on edit", async () => {
+    const store = await createProvider(SELLER);
+    const milk = await createProduct(store.id, { description: "Full cream" });
+
+    const cleared = await api()
+      .patch(`/api/products/${milk.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Milk", price: 180, stock: 5, description: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.description).toBeNull();
+
+    const fractional = await api()
+      .patch(`/api/products/${milk.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ stock: 2.5 });
+    expect(fractional.status).toBe(400);
+  });
+
+  it("keeps a service with its own provider when the owner edits it", async () => {
+    const mine = await createProvider(SELLER, { type: "service" });
+    const rival = await createProvider("rival-seller", { type: "service" });
+    const repair = await createService(mine.id);
+
+    const res = await api()
+      .patch(`/api/services/${repair.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Leak Repair", providerId: rival.id, description: null });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ providerId: mine.id, description: null });
+  });
+
   it("lets the owner add and edit a service", async () => {
     const provider = await createProvider(SELLER, { type: "service" });
 

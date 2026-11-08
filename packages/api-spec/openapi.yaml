@@ -1260,7 +1260,7 @@ components:
           type: string
           minLength: 1
         description:
-          type: string
+          type: [string, "null"]
         price:
           type: number
           minimum: 0
@@ -1322,10 +1322,12 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
-          type: string
+          type: [string, "null"]
         priceRange:
           type: string
+          minLength: 1
         duration:
           type: string
         category:

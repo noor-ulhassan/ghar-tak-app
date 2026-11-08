@@ -178,7 +178,8 @@ export interface CreateProductRequest {
 export interface UpdateProductRequest {
   /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
   /** @minimum 0 */
   price?: number;
   /** @minimum 0 */
@@ -214,8 +215,11 @@ export interface CreateServiceRequest {
 }
 
 export interface UpdateServiceRequest {
+  /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minLength 1 */
   priceRange?: string;
   duration?: string;
   category?: string;

@@ -2,14 +2,15 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, productsTable, providersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { CreateProductBody } from "@workspace/api-zod";
+import { CreateProductBody, UpdateProductBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
 
-// The generated schema allows any number; stock must also be a whole number.
+// The generated schemas allow any number; stock must also be a whole number.
 const NewProductBody = CreateProductBody.extend({ stock: z.number().int().min(0) });
+const ProductChanges = UpdateProductBody.extend({ stock: z.number().int().min(0).optional() });
 
 function mapProduct(p: any) {
   return {
@@ -87,7 +88,9 @@ router.post("/providers/:providerId/products", requireAuth, async (req: Request,
 router.patch("/products/:productId", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const { productId } = req.params as Record<string, string>;
-  const body = req.body as any;
+  // Only editable fields get through, so a product can't be moved to another store.
+  const body = parseBody(ProductChanges, req, res);
+  if (!body) return;
 
   try {
     const [existing] = await db

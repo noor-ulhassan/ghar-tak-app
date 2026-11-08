@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, servicesTable, providersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { CreateServiceBody } from "@workspace/api-zod";
+import { CreateServiceBody, UpdateServiceBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
@@ -75,7 +75,9 @@ router.post("/providers/:providerId/services", requireAuth, async (req: Request,
 router.patch("/services/:serviceId", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const { serviceId } = req.params as Record<string, string>;
-  const body = req.body as any;
+  // Only editable fields get through, so a service can't be moved to another provider.
+  const body = parseBody(UpdateServiceBody, req, res);
+  if (!body) return;
 
   try {
     const [existing] = await db
