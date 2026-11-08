@@ -34,9 +34,15 @@ export const GetMeResponse = zod.object({
 /**
  * @summary Update the authenticated user's profile
  */
+export const updateMeBodyNameMax = 120;
+
+export const updateMeBodyPhoneMax = 50;
+
+
+
 export const UpdateMeBody = zod.object({
-  "name": zod.string().optional(),
-  "phone": zod.string().optional()
+  "name": zod.string().max(updateMeBodyNameMax).optional(),
+  "phone": zod.string().max(updateMeBodyPhoneMax).optional()
 })
 
 export const UpdateMeResponse = zod.object({

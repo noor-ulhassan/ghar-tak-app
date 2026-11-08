@@ -81,10 +81,12 @@ export default function ProfilePage() {
   const orders = Array.isArray(ordersData) ? ordersData : [];
   const ordersCount = orders.length;
   const bookings = Array.isArray(bookingsData) ? bookingsData : [];
+  // The name saved in Ghar Tak wins; the Clerk account name fills in until one is saved.
+  const displayName = dbUser?.name || [user?.firstName, user?.lastName].filter(Boolean).join(" ");
 
   const handleEditClick = () => {
     setEditForm({
-      name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.firstName || dbUser?.name || ""),
+      name: displayName,
       phone: dbUser?.phone || "",
     });
     setIsEditing(true);
@@ -95,8 +97,11 @@ export default function ProfilePage() {
       { data: { name: editForm.name, phone: editForm.phone } },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["getMe"] });
           setIsEditing(false);
-        }
+          toast({ title: "Profile updated" });
+        },
+        onError: () => toast({ title: "Could not save your profile", variant: "destructive" }),
       }
     );
   };
@@ -167,7 +172,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="flex-1 pb-2">
-          <h1 className="text-2xl font-bold font-headline">{user.firstName} {user.lastName}</h1>
+          <h1 className="text-2xl font-bold font-headline">{displayName}</h1>
           <p className="text-muted-foreground text-sm">{user.primaryEmailAddress?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress}</p>
           <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
             <MapPin className="h-3.5 w-3.5" />

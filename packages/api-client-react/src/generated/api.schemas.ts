@@ -29,7 +29,9 @@ export interface UserProfile {
 }
 
 export interface UpdateUserProfileRequest {
+  /** @maxLength 120 */
   name?: string;
+  /** @maxLength 50 */
   phone?: string;
 }
 
