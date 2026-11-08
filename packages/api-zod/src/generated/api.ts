@@ -105,8 +105,11 @@ export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
 /**
  * @summary Register as a provider (business onboarding)
  */
+
+
+
 export const CreateProviderBody = zod.object({
-  "name": zod.string(),
+  "name": zod.string().min(1),
   "type": zod.enum(['store', 'service', 'restaurant']),
   "description": zod.string().optional(),
   "address": zod.string().optional(),
@@ -257,11 +260,18 @@ export const CreateProductParams = zod.object({
   "providerId": zod.coerce.string()
 })
 
+
+export const createProductBodyPriceMin = 0;
+
+export const createProductBodyStockMin = 0;
+
+
+
 export const CreateProductBody = zod.object({
-  "name": zod.string(),
+  "name": zod.string().min(1),
   "description": zod.string().optional(),
-  "price": zod.number(),
-  "stock": zod.number(),
+  "price": zod.number().min(createProductBodyPriceMin),
+  "stock": zod.number().min(createProductBodyStockMin),
   "sku": zod.string().optional(),
   "imageUrl": zod.string().optional(),
   "category": zod.string()
@@ -275,11 +285,18 @@ export const UpdateProductParams = zod.object({
   "productId": zod.coerce.string()
 })
 
+
+export const updateProductBodyPriceMin = 0;
+
+export const updateProductBodyStockMin = 0;
+
+
+
 export const UpdateProductBody = zod.object({
-  "name": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
   "description": zod.string().optional(),
-  "price": zod.number().optional(),
-  "stock": zod.number().optional(),
+  "price": zod.number().min(updateProductBodyPriceMin).optional(),
+  "stock": zod.number().min(updateProductBodyStockMin).optional(),
   "sku": zod.string().optional(),
   "imageUrl": zod.string().optional(),
   "category": zod.string().optional(),
@@ -337,10 +354,14 @@ export const CreateServiceParams = zod.object({
   "providerId": zod.coerce.string()
 })
 
+
+
+
+
 export const CreateServiceBody = zod.object({
-  "name": zod.string(),
+  "name": zod.string().min(1),
   "description": zod.string().optional(),
-  "priceRange": zod.string(),
+  "priceRange": zod.string().min(1),
   "duration": zod.string().optional(),
   "category": zod.string()
 })
@@ -386,6 +407,11 @@ export const DeleteServiceParams = zod.object({
 /**
  * @summary List orders for the authenticated user (customer view)
  */
+
+export const listMyOrdersResponseItemsItemUnitPriceMin = 0;
+
+
+
 export const ListMyOrdersResponseItem = zod.object({
   "id": zod.string(),
   "customerId": zod.string(),
@@ -401,8 +427,8 @@ export const ListMyOrdersResponseItem = zod.object({
   "productId": zod.string().nullable(),
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number()
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(listMyOrdersResponseItemsItemUnitPriceMin)
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -420,19 +446,28 @@ export const ListMyOrdersResponse = zod.array(ListMyOrdersResponseItem)
 /**
  * @summary Place a new order
  */
+
+
+export const createOrderBodyItemsItemUnitPriceMin = 0;
+
+
+export const createOrderBodyDeliveryFeeMin = 0;
+
+
+
 export const CreateOrderBody = zod.object({
-  "providerId": zod.string(),
+  "providerId": zod.string().min(1),
   "items": zod.array(zod.object({
   "productId": zod.string().nullable(),
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number()
-})),
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(createOrderBodyItemsItemUnitPriceMin)
+})).min(1),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().optional(),
   "notes": zod.string().optional(),
-  "deliveryFee": zod.number().optional(),
+  "deliveryFee": zod.number().min(createOrderBodyDeliveryFeeMin).optional(),
   "couponCode": zod.string().optional()
 })
 
@@ -443,6 +478,11 @@ export const CreateOrderBody = zod.object({
 export const GetOrderParams = zod.object({
   "orderId": zod.coerce.string()
 })
+
+
+export const getOrderResponseItemsItemUnitPriceMin = 0;
+
+
 
 export const GetOrderResponse = zod.object({
   "id": zod.string(),
@@ -459,8 +499,8 @@ export const GetOrderResponse = zod.object({
   "productId": zod.string().nullable(),
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number()
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(getOrderResponseItemsItemUnitPriceMin)
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -485,6 +525,11 @@ export const UpdateOrderStatusBody = zod.object({
   "status": zod.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'])
 })
 
+
+export const updateOrderStatusResponseItemsItemUnitPriceMin = 0;
+
+
+
 export const UpdateOrderStatusResponse = zod.object({
   "id": zod.string(),
   "customerId": zod.string(),
@@ -500,8 +545,8 @@ export const UpdateOrderStatusResponse = zod.object({
   "productId": zod.string().nullable(),
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number()
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(updateOrderStatusResponseItemsItemUnitPriceMin)
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -518,6 +563,11 @@ export const UpdateOrderStatusResponse = zod.object({
 /**
  * @summary List orders received by the authenticated provider
  */
+
+export const listProviderOrdersResponseItemsItemUnitPriceMin = 0;
+
+
+
 export const ListProviderOrdersResponseItem = zod.object({
   "id": zod.string(),
   "customerId": zod.string(),
@@ -533,8 +583,8 @@ export const ListProviderOrdersResponseItem = zod.object({
   "productId": zod.string().nullable(),
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
-  "quantity": zod.number(),
-  "unitPrice": zod.number()
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(listProviderOrdersResponseItemsItemUnitPriceMin)
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -621,9 +671,13 @@ export const DeleteAddressResponse = zod.object({
 /**
  * @summary Validate a coupon code against an order subtotal
  */
+export const validateCouponBodySubtotalMin = 0;
+
+
+
 export const ValidateCouponBody = zod.object({
   "code": zod.string(),
-  "subtotal": zod.number()
+  "subtotal": zod.number().min(validateCouponBodySubtotalMin)
 })
 
 export const ValidateCouponResponse = zod.object({

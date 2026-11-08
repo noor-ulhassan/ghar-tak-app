@@ -8,6 +8,7 @@
 import type { CreateProviderRequestType } from './createProviderRequestType';
 
 export interface CreateProviderRequest {
+  /** @minLength 1 */
   name: string;
   type: CreateProviderRequestType;
   description?: string;

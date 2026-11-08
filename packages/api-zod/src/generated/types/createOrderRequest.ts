@@ -9,11 +9,14 @@ import type { CreateOrderRequestPaymentMethod } from './createOrderRequestPaymen
 import type { OrderItem } from './orderItem';
 
 export interface CreateOrderRequest {
+  /** @minLength 1 */
   providerId: string;
+  /** @minItems 1 */
   items: OrderItem[];
   paymentMethod: CreateOrderRequestPaymentMethod;
   deliveryAddress?: string;
   notes?: string;
+  /** @minimum 0 */
   deliveryFee?: number;
   couponCode?: string;
 }

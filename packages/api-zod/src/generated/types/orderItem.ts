@@ -12,6 +12,8 @@ export interface OrderItem {
   /** @nullable */
   serviceId?: string | null;
   name: string;
+  /** @minimum 1 */
   quantity: number;
+  /** @minimum 0 */
   unitPrice: number;
 }

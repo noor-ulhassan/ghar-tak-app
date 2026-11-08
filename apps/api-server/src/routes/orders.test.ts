@@ -37,6 +37,22 @@ describe("orders", () => {
     expect(res.status).toBe(401);
   });
 
+  it.each([
+    ["has no items", { items: [] }],
+    ["has a zero quantity", { items: [{ productId: "x", name: "Milk", quantity: 0, unitPrice: 180 }] }],
+    ["has a fractional quantity", { items: [{ productId: "x", name: "Milk", quantity: 1.5, unitPrice: 180 }] }],
+    ["has a negative price", { items: [{ productId: "x", name: "Milk", quantity: 1, unitPrice: -5 }] }],
+    ["has an unknown payment method", { paymentMethod: "bitcoin" }],
+  ])("rejects an order that %s", async (_label, change) => {
+    const { store, milk } = await storeWithMilk();
+    const res = await api()
+      .post("/api/orders")
+      .set(SIGNED_IN_AS, CUSTOMER)
+      .send(orderBody(store.id, milk.id, change));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid request");
+  });
+
   it("places a pending order and totals items plus delivery", async () => {
     const { store, milk } = await storeWithMilk();
     const res = await api()

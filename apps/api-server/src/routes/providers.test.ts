@@ -40,6 +40,20 @@ describe("providers", () => {
     expect(second.status).toBe(409);
   });
 
+  it("rejects a registration without a name or with an unknown type", async () => {
+    const noName = await api()
+      .post("/api/providers")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "", type: "store" });
+    expect(noName.status).toBe(400);
+
+    const badType = await api()
+      .post("/api/providers")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Shop", type: "bank" });
+    expect(badType.status).toBe(400);
+  });
+
   it("lets the owner edit their business details", async () => {
     await createProvider(SELLER);
     const res = await api()

@@ -1136,6 +1136,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         type:
           type: string
           enum: [store, service, restaurant]
@@ -1235,12 +1236,15 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         price:
           type: number
+          minimum: 0
         stock:
           type: integer
+          minimum: 0
         sku:
           type: string
         imageUrl:
@@ -1253,12 +1257,15 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         price:
           type: number
+          minimum: 0
         stock:
           type: integer
+          minimum: 0
         sku:
           type: string
         imageUrl:
@@ -1298,10 +1305,12 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         priceRange:
           type: string
+          minLength: 1
         duration:
           type: string
         category:
@@ -1335,8 +1344,10 @@ components:
           type: string
         quantity:
           type: integer
+          minimum: 1
         unitPrice:
           type: number
+          minimum: 0
 
     Order:
       type: object
@@ -1401,8 +1412,10 @@ components:
       properties:
         providerId:
           type: string
+          minLength: 1
         items:
           type: array
+          minItems: 1
           items:
             $ref: "#/components/schemas/OrderItem"
         paymentMethod:
@@ -1414,6 +1427,7 @@ components:
           type: string
         deliveryFee:
           type: number
+          minimum: 0
         couponCode:
           type: string
 
@@ -1529,6 +1543,7 @@ components:
           type: string
         subtotal:
           type: number
+          minimum: 0
 
     CouponValidation:
       type: object

@@ -132,6 +132,9 @@ importers:
       pino-http:
         specifier: ^8.6.0
         version: 8.6.1
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

@@ -1,9 +1,15 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, productsTable, providersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { z } from "zod";
+import { CreateProductBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
+
+// The generated schema allows any number; stock must also be a whole number.
+const NewProductBody = CreateProductBody.extend({ stock: z.number().int().min(0) });
 
 function mapProduct(p: any) {
   return {
@@ -40,7 +46,8 @@ router.get("/providers/:providerId/products", async (req: Request, res: Response
 router.post("/providers/:providerId/products", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const { providerId } = req.params as Record<string, string>;
-  const body = req.body as any;
+  const body = parseBody(NewProductBody, req, res);
+  if (!body) return;
 
   try {
     // Verify ownership

@@ -1,10 +1,20 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, ordersTable, providersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { CreateOrderBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 import { resolveCoupon } from "./coupons";
 
 const router: IRouter = Router();
+
+// The generated schema allows any number; a quantity must also be a whole number.
+const NewOrderBody = CreateOrderBody.extend({
+  items: z
+    .array(CreateOrderBody.shape.items.element.extend({ quantity: z.number().int().min(1) }))
+    .min(1),
+});
 
 function mapOrder(o: any) {
   return {
@@ -47,7 +57,8 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
 // POST /api/orders
 router.post("/orders", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const body = req.body as any;
+  const body = parseBody(NewOrderBody, req, res);
+  if (!body) return;
 
   try {
     const [provider] = await db
@@ -61,8 +72,8 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const subtotal = (body.items as any[]).reduce(
-      (sum: number, item: any) => sum + item.quantity * item.unitPrice,
+    const subtotal = body.items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
       0,
     );
 

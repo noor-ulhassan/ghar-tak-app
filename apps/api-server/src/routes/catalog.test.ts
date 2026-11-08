@@ -37,6 +37,20 @@ describe("products and services", () => {
     expect(list.body).toEqual([]);
   });
 
+  it.each([
+    ["no name", { name: "", price: 100, stock: 1, category: "General" }],
+    ["a negative price", { name: "Eggs", price: -1, stock: 1, category: "General" }],
+    ["a fractional stock", { name: "Eggs", price: 100, stock: 2.5, category: "General" }],
+    ["a text price", { name: "Eggs", price: "abc", stock: 1, category: "General" }],
+  ])("rejects a new product with %s", async (_label, product) => {
+    const store = await createProvider(SELLER);
+    const res = await api()
+      .post(`/api/providers/${store.id}/products`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send(product);
+    expect(res.status).toBe(400);
+  });
+
   it("stops other users from changing a store's products", async () => {
     const store = await createProvider(SELLER);
     const milk = await createProduct(store.id);
@@ -44,7 +58,7 @@ describe("products and services", () => {
     const create = await api()
       .post(`/api/providers/${store.id}/products`)
       .set(SIGNED_IN_AS, "someone-else")
-      .send({ name: "Fake", price: 1 });
+      .send({ name: "Fake", price: 1, stock: 1, category: "General" });
     expect(create.status).toBe(401);
 
     const edit = await api()

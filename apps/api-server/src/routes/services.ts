@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, servicesTable, providersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { CreateServiceBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -35,7 +37,8 @@ router.get("/providers/:providerId/services", async (req: Request, res: Response
 router.post("/providers/:providerId/services", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const { providerId } = req.params as Record<string, string>;
-  const body = req.body as any;
+  const body = parseBody(CreateServiceBody, req, res);
+  if (!body) return;
 
   try {
     const [provider] = await db

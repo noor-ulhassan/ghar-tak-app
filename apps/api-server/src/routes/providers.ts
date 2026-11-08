@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable, ordersTable, reviewsTable } from "@workspace/db";
 import { eq, and, ilike, or, count, avg } from "drizzle-orm";
+import { CreateProviderBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -64,7 +66,8 @@ router.get("/providers", async (req: Request, res: Response) => {
 // POST /api/providers
 router.post("/providers", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const body = req.body as any;
+  const body = parseBody(CreateProviderBody, req, res);
+  if (!body) return;
 
   try {
     // Check if user already has a provider
