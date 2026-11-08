@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, ordersTable, providersTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { db, ordersTable, productsTable, providersTable } from "@workspace/db";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
@@ -15,6 +15,18 @@ const NewOrderBody = CreateOrderBody.extend({
     .array(CreateOrderBody.shape.items.element.extend({ quantity: z.number().int().min(1) }))
     .min(1),
 });
+
+// Same rule the checkout page shows: Rs 50 delivery, free from Rs 1,500.
+const DELIVERY_FEE = 50;
+const FREE_DELIVERY_FROM = 1500;
+
+function deliveryFeeFor(subtotal: number) {
+  return subtotal >= FREE_DELIVERY_FROM ? 0 : DELIVERY_FEE;
+}
+
+// Money is added up in whole paisa so decimals like 0.1 + 0.2 can't drift.
+const toPaisa = (rupees: number) => Math.round(rupees * 100);
+const toRupees = (paisa: number) => paisa / 100;
 
 // An order only moves forward through these steps; a store may skip steps.
 const ORDER_STEPS = ["pending", "confirmed", "processing", "shipped", "delivered"];
@@ -91,12 +103,44 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const subtotal = body.items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
-      0,
-    );
+    // Prices and names come from the database. The browser's unitPrice and
+    // deliveryFee are ignored, so editing the request can't change the total.
+    const quantities = new Map<string, number>();
+    for (const item of body.items) {
+      if (!item.productId) {
+        res.status(400).json({ error: "Every item must be a product from this store." });
+        return;
+      }
+      quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+    }
 
-    const deliveryFee = Math.max(0, Number(body.deliveryFee ?? 0));
+    const products = await db
+      .select()
+      .from(productsTable)
+      .where(and(
+        eq(productsTable.providerId, provider.id),
+        inArray(productsTable.id, [...quantities.keys()]),
+      ));
+    if (products.length !== quantities.size) {
+      res.status(400).json({ error: "Some items aren't sold by this store." });
+      return;
+    }
+
+    const productsById = new Map(products.map((product) => [product.id, product]));
+    const items = [...quantities].map(([productId, quantity]) => {
+      const product = productsById.get(productId)!;
+      return {
+        productId,
+        serviceId: null,
+        name: product.name,
+        quantity,
+        unitPrice: Number(product.price),
+      };
+    });
+    const subtotal = toRupees(
+      items.reduce((paisa, item) => paisa + toPaisa(item.unitPrice) * item.quantity, 0),
+    );
+    const deliveryFee = deliveryFeeFor(subtotal);
 
     let discount = 0;
     let couponCode: string | null = null;
@@ -110,7 +154,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
       couponCode = coupon.code;
     }
 
-    const total = subtotal + deliveryFee - discount;
+    const total = toRupees(toPaisa(subtotal) + toPaisa(deliveryFee) - toPaisa(discount));
 
     const [order] = await db
       .insert(ordersTable)
@@ -123,7 +167,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
         paymentMethod: body.paymentMethod ?? "cash_on_delivery",
         deliveryAddress: body.deliveryAddress ?? null,
         notes: body.notes ?? null,
-        items: body.items,
+        items,
         deliveryFee: String(deliveryFee),
         discount: String(discount),
         couponCode,

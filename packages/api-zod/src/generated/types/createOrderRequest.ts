@@ -16,7 +16,10 @@ export interface CreateOrderRequest {
   paymentMethod: CreateOrderRequestPaymentMethod;
   deliveryAddress?: string;
   notes?: string;
-  /** @minimum 0 */
+  /**
+     * Ignored; the server calculates the delivery fee.
+     * @minimum 0
+     */
   deliveryFee?: number;
   couponCode?: string;
 }

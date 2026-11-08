@@ -435,7 +435,7 @@ export const ListMyOrdersResponseItem = zod.object({
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number().min(listMyOrdersResponseItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(listMyOrdersResponseItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -469,12 +469,12 @@ export const CreateOrderBody = zod.object({
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number().min(createOrderBodyItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(createOrderBodyItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })).min(1),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jazzcash', 'easypaisa', 'card']),
   "deliveryAddress": zod.string().optional(),
   "notes": zod.string().optional(),
-  "deliveryFee": zod.number().min(createOrderBodyDeliveryFeeMin).optional(),
+  "deliveryFee": zod.number().min(createOrderBodyDeliveryFeeMin).optional().describe('Ignored; the server calculates the delivery fee.'),
   "couponCode": zod.string().optional()
 })
 
@@ -507,7 +507,7 @@ export const GetOrderResponse = zod.object({
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number().min(getOrderResponseItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(getOrderResponseItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -553,7 +553,7 @@ export const UpdateOrderStatusResponse = zod.object({
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number().min(updateOrderStatusResponseItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(updateOrderStatusResponseItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),
@@ -591,7 +591,7 @@ export const ListProviderOrdersResponseItem = zod.object({
   "serviceId": zod.string().nullish(),
   "name": zod.string(),
   "quantity": zod.number().min(1),
-  "unitPrice": zod.number().min(listProviderOrdersResponseItemsItemUnitPriceMin)
+  "unitPrice": zod.number().min(listProviderOrdersResponseItemsItemUnitPriceMin).describe('When placing an order this is ignored; the server uses the product\'s current price.')
 })),
   "deliveryFee": zod.number(),
   "discount": zod.number(),

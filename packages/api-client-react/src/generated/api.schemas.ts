@@ -234,7 +234,10 @@ export interface OrderItem {
   name: string;
   /** @minimum 1 */
   quantity: number;
-  /** @minimum 0 */
+  /**
+     * When placing an order this is ignored; the server uses the product's current price.
+     * @minimum 0
+     */
   unitPrice: number;
 }
 
@@ -307,7 +310,10 @@ export interface CreateOrderRequest {
   paymentMethod: CreateOrderRequestPaymentMethod;
   deliveryAddress?: string;
   notes?: string;
-  /** @minimum 0 */
+  /**
+     * Ignored; the server calculates the delivery fee.
+     * @minimum 0
+     */
   deliveryFee?: number;
   couponCode?: string;
 }

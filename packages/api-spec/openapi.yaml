@@ -1351,6 +1351,7 @@ components:
         unitPrice:
           type: number
           minimum: 0
+          description: When placing an order this is ignored; the server uses the product's current price.
 
     Order:
       type: object
@@ -1431,6 +1432,7 @@ components:
         deliveryFee:
           type: number
           minimum: 0
+          description: Ignored; the server calculates the delivery fee.
         couponCode:
           type: string
 

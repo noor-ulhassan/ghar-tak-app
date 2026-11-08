@@ -74,6 +74,70 @@ describe("orders", () => {
     });
   });
 
+  describe("server-side pricing", () => {
+    it("ignores a tampered price, name and delivery fee", async () => {
+      const { store, milk } = await storeWithMilk();
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, {
+          deliveryFee: 0,
+          items: [{ productId: milk.id, name: "Gold bar", quantity: 2, unitPrice: 1 }],
+        }));
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ total: 410, deliveryFee: 50 });
+      expect(res.body.items).toEqual([
+        { productId: milk.id, serviceId: null, name: "Milk", quantity: 2, unitPrice: 180 },
+      ]);
+    });
+
+    it("delivers free from Rs 1,500", async () => {
+      const store = await createProvider(SELLER);
+      const rice = await createProduct(store.id, { name: "Rice 5kg", price: "1500" });
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, rice.id, {
+          items: [{ productId: rice.id, name: "Rice 5kg", quantity: 1, unitPrice: 1500 }],
+        }));
+      expect(res.body).toMatchObject({ total: 1500, deliveryFee: 0 });
+    });
+
+    it("adds up decimal prices exactly and merges repeated items", async () => {
+      const store = await createProvider(SELLER);
+      const gum = await createProduct(store.id, { name: "Gum", price: "0.10" });
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, gum.id, {
+          items: [
+            { productId: gum.id, name: "Gum", quantity: 1, unitPrice: 0.1 },
+            { productId: gum.id, name: "Gum", quantity: 2, unitPrice: 0.1 },
+          ],
+        }));
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0].quantity).toBe(3);
+      expect(res.body.total).toBe(50.3);
+    });
+
+    it.each([
+      ["a product from another store", "rival"],
+      ["an unknown product", "missing"],
+    ])("rejects %s", async (_label, which) => {
+      const { store } = await storeWithMilk();
+      const rival = await createProvider("rival-seller");
+      const rivalMilk = await createProduct(rival.id);
+      const productId = which === "rival" ? rivalMilk.id : "does-not-exist";
+
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, productId));
+      expect(res.status).toBe(400);
+    });
+  });
+
   it("applies a valid coupon to the total", async () => {
     const { store, milk } = await storeWithMilk();
     await createCoupon({ code: "WELCOME10", type: "percent", value: "10" });
