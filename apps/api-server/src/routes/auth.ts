@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db, providersTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateMeBody } from "@workspace/api-zod";
+import { ensureUser, type User } from "../lib/users";
 import { parseBody } from "../lib/validation";
 
 const router: IRouter = Router();
@@ -17,30 +18,7 @@ function requireAuth(req: Request, res: Response, next: () => void) {
   next();
 }
 
-// Upsert a local user record from Clerk data
-async function getOrCreateUser(clerkUserId: string, clerkUser?: any) {
-  const existing = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, clerkUserId))
-    .limit(1);
-
-  if (existing.length > 0) return existing[0];
-
-  const [created] = await db
-    .insert(usersTable)
-    .values({
-      id: clerkUserId,
-      email: clerkUser?.emailAddresses?.[0]?.emailAddress ?? null,
-      firstName: clerkUser?.firstName ?? null,
-      lastName: clerkUser?.lastName ?? null,
-      profileImageUrl: clerkUser?.imageUrl ?? null,
-    })
-    .returning();
-  return created;
-}
-
-async function toProfile(user: typeof usersTable.$inferSelect) {
+async function toProfile(user: User) {
   const [provider] = await db
     .select({ id: providersTable.id })
     .from(providersTable)
@@ -63,13 +41,7 @@ async function toProfile(user: typeof usersTable.$inferSelect) {
 router.get("/auth/me", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   try {
-    const user = await getOrCreateUser(clerkUserId);
-    if (!user) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-
-    res.json(await toProfile(user));
+    res.json(await toProfile(await ensureUser(clerkUserId)));
   } catch (err) {
     req.log.error({ err }, "GET /auth/me error");
     res.status(500).json({ error: "Internal server error" });
@@ -84,7 +56,7 @@ router.patch("/auth/me", requireAuth, async (req: Request, res: Response) => {
   const { name, phone } = body;
 
   try {
-    await getOrCreateUser(clerkUserId);
+    await ensureUser(clerkUserId);
 
     // Only the fields sent are changed, so saving just a phone keeps the name.
     const changes: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };

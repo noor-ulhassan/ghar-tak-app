@@ -3,6 +3,7 @@ import { db, ordersTable, productsTable, providersTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
+import { displayName, ensureUser } from "../lib/users";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 import { resolveCoupon } from "./coupons";
@@ -106,6 +107,8 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
+    const customer = await ensureUser(clerkUserId);
+
     // One transaction: the stock checks, the stock decrease and the order
     // all save together, or none of them do.
     const outcome = await db.transaction(async (tx) => {
@@ -179,6 +182,7 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
         .insert(ordersTable)
         .values({
           customerId: clerkUserId,
+          customerName: displayName(customer),
           providerId: provider.id,
           providerName: provider.name,
           status: "pending",

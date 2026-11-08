@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, bookingsTable, providersTable, servicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { displayName, ensureUser } from "../lib/users";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -71,10 +72,12 @@ router.post("/bookings", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const customer = await ensureUser(clerkUserId);
     const [booking] = await db
       .insert(bookingsTable)
       .values({
         customerId: clerkUserId,
+        customerName: displayName(customer),
         providerId: provider.id,
         providerName: provider.name,
         serviceId: service.id,

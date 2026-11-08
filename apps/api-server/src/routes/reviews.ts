@@ -10,6 +10,7 @@ import {
 import { and, avg, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { CreateReviewBody } from "@workspace/api-zod";
+import { displayName, ensureUser } from "../lib/users";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
@@ -74,6 +75,7 @@ router.post("/providers/:providerId/reviews", requireAuth, async (req: Request, 
   const { rating, comment, serviceId } = body;
 
   try {
+    const customer = await ensureUser(clerkUserId);
     const outcome = await db.transaction(async (tx) => {
       // Locking the provider row makes reviews for one provider run one at a
       // time, so the eligibility count and the average rating stay correct.
@@ -129,7 +131,8 @@ router.post("/providers/:providerId/reviews", requireAuth, async (req: Request, 
           providerId,
           serviceId: serviceId ?? null,
           customerId: clerkUserId,
-          customerName: null,
+          customerName: displayName(customer),
+          customerAvatarUrl: customer.profileImageUrl,
           rating,
           comment: comment ?? null,
         })
