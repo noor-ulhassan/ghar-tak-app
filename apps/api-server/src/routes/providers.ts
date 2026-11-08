@@ -183,7 +183,10 @@ router.get("/providers/me/stats", requireAuth, async (req: Request, res: Respons
       .where(eq(ordersTable.providerId, provider.id));
 
     const activeOrders = allOrders.filter((o) => o.status !== "cancelled");
-    const totalRevenue = activeOrders.reduce((sum, o) => sum + Number(o.total), 0);
+    // Revenue is money actually earned: only orders that reached the customer.
+    const totalRevenue = allOrders
+      .filter((o) => o.status === "delivered")
+      .reduce((sum, o) => sum + Number(o.total), 0);
     const pendingOrders = allOrders.filter((o) => o.status === "pending" || o.status === "confirmed").length;
     const today = new Date().toDateString();
     const newOrdersToday = allOrders.filter((o) => new Date(o.createdAt).toDateString() === today).length;
