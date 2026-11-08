@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { db, productsTable } from "@workspace/db";
 import {
   SIGNED_IN_AS,
   api,
@@ -135,6 +137,69 @@ describe("orders", () => {
         .set(SIGNED_IN_AS, CUSTOMER)
         .send(orderBody(store.id, productId));
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("stock and opening", () => {
+    async function stockOf(productId: string) {
+      const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId));
+      return product.stock;
+    }
+
+    it("takes ordered items out of stock", async () => {
+      const { store, milk } = await storeWithMilk();
+      await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+      expect(await stockOf(milk.id)).toBe(8);
+    });
+
+    it("refuses more than the store has, and changes nothing", async () => {
+      const store = await createProvider(SELLER);
+      const milk = await createProduct(store.id, { stock: 1 });
+      const res = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("Only 1 of Milk left.");
+      expect(await stockOf(milk.id)).toBe(1);
+    });
+
+    it("refuses an unavailable product and a closed store", async () => {
+      const store = await createProvider(SELLER);
+      const hidden = await createProduct(store.id, { isAvailable: false });
+      expect((await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, hidden.id))).status).toBe(409);
+
+      const closed = await createProvider("closed-seller", { isOpen: false });
+      const bread = await createProduct(closed.id);
+      const res = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(closed.id, bread.id));
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/closed/);
+    });
+
+    it("sells the last item only once when two orders arrive together", async () => {
+      const store = await createProvider(SELLER);
+      const milk = await createProduct(store.id, { stock: 2 });
+      const [a, b] = await Promise.all([
+        api().post("/api/orders").set(SIGNED_IN_AS, "customer-a").send(orderBody(store.id, milk.id)),
+        api().post("/api/orders").set(SIGNED_IN_AS, "customer-b").send(orderBody(store.id, milk.id)),
+      ]);
+
+      expect([a.status, b.status].sort()).toEqual([201, 409]);
+      expect(await stockOf(milk.id)).toBe(0);
+    });
+
+    it("puts stock back when an order is cancelled", async () => {
+      const { store, milk } = await storeWithMilk();
+      const placed = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+      await api().patch(`/api/orders/${placed.body.id}`).set(SIGNED_IN_AS, CUSTOMER).send({ status: "cancelled" });
+      expect(await stockOf(milk.id)).toBe(10);
+    });
+
+    it("leaves stock alone when cancelling an order placed before stock tracking", async () => {
+      const { store, milk } = await storeWithMilk();
+      const old = await createOrder(CUSTOMER, store.id, {
+        items: [{ productId: milk.id, name: "Milk", quantity: 2, unitPrice: 180 }],
+      });
+      await api().patch(`/api/orders/${old.id}`).set(SIGNED_IN_AS, SELLER).send({ status: "cancelled" });
+      expect(await stockOf(milk.id)).toBe(10);
     });
   });
 

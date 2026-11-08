@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, ordersTable, productsTable, providersTable } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
@@ -23,6 +23,9 @@ const FREE_DELIVERY_FROM = 1500;
 function deliveryFeeFor(subtotal: number) {
   return subtotal >= FREE_DELIVERY_FROM ? 0 : DELIVERY_FEE;
 }
+
+/** A request the API turns down; every refusal happens before anything is written. */
+const refusal = (status: number, error: string) => ({ status, error }) as const;
 
 // Money is added up in whole paisa so decimals like 0.1 + 0.2 can't drift.
 const toPaisa = (rupees: number) => Math.round(rupees * 100);
@@ -91,91 +94,114 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
   const body = parseBody(NewOrderBody, req, res);
   if (!body) return;
 
+  // Prices and names come from the database. The browser's unitPrice and
+  // deliveryFee are ignored, so editing the request can't change the total.
+  const quantities = new Map<string, number>();
+  for (const item of body.items) {
+    if (!item.productId) {
+      res.status(400).json({ error: "Every item must be a product from this store." });
+      return;
+    }
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
   try {
-    const [provider] = await db
-      .select({ id: providersTable.id, name: providersTable.name })
-      .from(providersTable)
-      .where(eq(providersTable.id, body.providerId))
-      .limit(1);
+    // One transaction: the stock checks, the stock decrease and the order
+    // all save together, or none of them do.
+    const outcome = await db.transaction(async (tx) => {
+      const [provider] = await tx
+        .select({ id: providersTable.id, name: providersTable.name, isOpen: providersTable.isOpen })
+        .from(providersTable)
+        .where(eq(providersTable.id, body.providerId))
+        .limit(1);
+      if (!provider) return refusal(404, "Provider not found");
+      if (!provider.isOpen) return refusal(409, `${provider.name} is closed right now.`);
 
-    if (!provider) {
-      res.status(404).json({ error: "Provider not found" });
-      return;
-    }
-
-    // Prices and names come from the database. The browser's unitPrice and
-    // deliveryFee are ignored, so editing the request can't change the total.
-    const quantities = new Map<string, number>();
-    for (const item of body.items) {
-      if (!item.productId) {
-        res.status(400).json({ error: "Every item must be a product from this store." });
-        return;
+      // Locking the rows (in id order, so two orders can't deadlock) stops two
+      // customers from both buying the last item.
+      const products = await tx
+        .select()
+        .from(productsTable)
+        .where(and(
+          eq(productsTable.providerId, provider.id),
+          inArray(productsTable.id, [...quantities.keys()]),
+        ))
+        .orderBy(productsTable.id)
+        .for("update");
+      if (products.length !== quantities.size) {
+        return refusal(400, "Some items aren't sold by this store.");
       }
-      quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
-    }
+      for (const product of products) {
+        const wanted = quantities.get(product.id)!;
+        if (!product.isAvailable) return refusal(409, `${product.name} isn't available right now.`);
+        if (product.stock < wanted) {
+          return refusal(409, product.stock > 0
+            ? `Only ${product.stock} of ${product.name} left.`
+            : `${product.name} is out of stock.`);
+        }
+      }
 
-    const products = await db
-      .select()
-      .from(productsTable)
-      .where(and(
-        eq(productsTable.providerId, provider.id),
-        inArray(productsTable.id, [...quantities.keys()]),
-      ));
-    if (products.length !== quantities.size) {
-      res.status(400).json({ error: "Some items aren't sold by this store." });
-      return;
-    }
+      const productsById = new Map(products.map((product) => [product.id, product]));
+      const items = [...quantities].map(([productId, quantity]) => {
+        const product = productsById.get(productId)!;
+        return {
+          productId,
+          serviceId: null,
+          name: product.name,
+          quantity,
+          unitPrice: Number(product.price),
+        };
+      });
+      const subtotal = toRupees(
+        items.reduce((paisa, item) => paisa + toPaisa(item.unitPrice) * item.quantity, 0),
+      );
+      const deliveryFee = deliveryFeeFor(subtotal);
 
-    const productsById = new Map(products.map((product) => [product.id, product]));
-    const items = [...quantities].map(([productId, quantity]) => {
-      const product = productsById.get(productId)!;
-      return {
-        productId,
-        serviceId: null,
-        name: product.name,
-        quantity,
-        unitPrice: Number(product.price),
-      };
+      let discount = 0;
+      let couponCode: string | null = null;
+      if (body.couponCode) {
+        const coupon = await resolveCoupon(String(body.couponCode), subtotal);
+        if (!coupon.valid) return refusal(400, coupon.reason);
+        discount = coupon.discount;
+        couponCode = coupon.code;
+      }
+
+      const total = toRupees(toPaisa(subtotal) + toPaisa(deliveryFee) - toPaisa(discount));
+
+      for (const [productId, quantity] of quantities) {
+        await tx
+          .update(productsTable)
+          .set({ stock: sql`${productsTable.stock} - ${quantity}`, updatedAt: new Date() })
+          .where(eq(productsTable.id, productId));
+      }
+
+      const [order] = await tx
+        .insert(ordersTable)
+        .values({
+          customerId: clerkUserId,
+          providerId: provider.id,
+          providerName: provider.name,
+          status: "pending",
+          total: String(total),
+          paymentMethod: body.paymentMethod ?? "cash_on_delivery",
+          deliveryAddress: body.deliveryAddress ?? null,
+          notes: body.notes ?? null,
+          items,
+          deliveryFee: String(deliveryFee),
+          discount: String(discount),
+          couponCode,
+          statusHistory: [{ status: "pending", at: new Date().toISOString() }] as unknown as object[],
+          stockReserved: true,
+        })
+        .returning();
+      return { order };
     });
-    const subtotal = toRupees(
-      items.reduce((paisa, item) => paisa + toPaisa(item.unitPrice) * item.quantity, 0),
-    );
-    const deliveryFee = deliveryFeeFor(subtotal);
 
-    let discount = 0;
-    let couponCode: string | null = null;
-    if (body.couponCode) {
-      const coupon = await resolveCoupon(String(body.couponCode), subtotal);
-      if (!coupon.valid) {
-        res.status(400).json({ error: coupon.reason });
-        return;
-      }
-      discount = coupon.discount;
-      couponCode = coupon.code;
+    if ("error" in outcome) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
     }
-
-    const total = toRupees(toPaisa(subtotal) + toPaisa(deliveryFee) - toPaisa(discount));
-
-    const [order] = await db
-      .insert(ordersTable)
-      .values({
-        customerId: clerkUserId,
-        providerId: body.providerId,
-        providerName: provider.name,
-        status: "pending",
-        total: String(total),
-        paymentMethod: body.paymentMethod ?? "cash_on_delivery",
-        deliveryAddress: body.deliveryAddress ?? null,
-        notes: body.notes ?? null,
-        items,
-        deliveryFee: String(deliveryFee),
-        discount: String(discount),
-        couponCode,
-        statusHistory: [{ status: "pending", at: new Date().toISOString() }] as unknown as object[],
-      })
-      .returning();
-
-    res.status(201).json(mapOrder(order));
+    res.status(201).json(mapOrder(outcome.order));
   } catch (err) {
     req.log.error({ err }, "POST /orders error");
     res.status(500).json({ error: "Internal server error" });
@@ -259,26 +285,40 @@ router.patch("/orders/:orderId", requireAuth, async (req: Request, res: Response
       return;
     }
 
-    const refusal = statusChangeRefusal(order.status, status, isProvider ? "store" : "customer");
-    if (refusal) {
-      res.status(409).json({ error: refusal });
+    const notAllowed = statusChangeRefusal(order.status, status, isProvider ? "store" : "customer");
+    if (notAllowed) {
+      res.status(409).json({ error: notAllowed });
       return;
     }
 
     const history = Array.isArray(order.statusHistory) ? order.statusHistory : [];
-    // Matching on the old status too means two changes made at once can't both apply.
-    const [updated] = await db
-      .update(ordersTable)
-      .set({
-        status,
-        statusHistory: [
-          ...history,
-          { status, at: new Date().toISOString() },
-        ] as unknown as object[],
-        updatedAt: new Date(),
-      })
-      .where(and(eq(ordersTable.id, orderId), eq(ordersTable.status, order.status)))
-      .returning();
+    const updated = await db.transaction(async (tx) => {
+      // Matching on the old status too means two changes made at once can't both apply.
+      const [row] = await tx
+        .update(ordersTable)
+        .set({
+          status,
+          statusHistory: [
+            ...history,
+            { status, at: new Date().toISOString() },
+          ] as unknown as object[],
+          updatedAt: new Date(),
+        })
+        .where(and(eq(ordersTable.id, orderId), eq(ordersTable.status, order.status)))
+        .returning();
+
+      // A cancelled order gives its items back to the store's stock.
+      if (row && status === "cancelled" && row.stockReserved) {
+        for (const item of row.items as { productId?: string | null; quantity: number }[]) {
+          if (!item.productId) continue;
+          await tx
+            .update(productsTable)
+            .set({ stock: sql`${productsTable.stock} + ${item.quantity}`, updatedAt: new Date() })
+            .where(eq(productsTable.id, item.productId));
+        }
+      }
+      return row;
+    });
 
     if (!updated) {
       res.status(409).json({ error: "This order was just updated. Refresh and try again." });
