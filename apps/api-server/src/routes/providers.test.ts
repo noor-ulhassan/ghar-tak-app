@@ -77,6 +77,39 @@ describe("providers", () => {
     });
   });
 
+  it("ignores protected fields when the owner edits their store", async () => {
+    const store = await createProvider(SELLER, { rating: "3.20", reviewCount: 4 });
+    const res = await api()
+      .patch("/api/providers/me")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({
+        name: "Honest Store",
+        isVerified: true,
+        rating: 5,
+        reviewCount: 1000,
+        planId: "pro",
+        userId: "someone-else",
+        id: "new-id",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: store.id,
+      userId: SELLER,
+      name: "Honest Store",
+      isVerified: false,
+      rating: 3.2,
+      reviewCount: 4,
+      planId: "starter",
+    });
+  });
+
+  it("rejects an empty store name", async () => {
+    await createProvider(SELLER);
+    const res = await api().patch("/api/providers/me").set(SIGNED_IN_AS, SELLER).send({ name: "" });
+    expect(res.status).toBe(400);
+  });
+
   it("returns dashboard stats for the owner", async () => {
     const store = await createProvider(SELLER);
     await createProduct(store.id);

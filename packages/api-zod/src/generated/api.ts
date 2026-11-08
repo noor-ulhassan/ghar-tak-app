@@ -153,8 +153,11 @@ export const GetMyProviderResponse = zod.object({
 /**
  * @summary Update the authenticated user's provider profile
  */
+
+
+
 export const UpdateMyProviderBody = zod.object({
-  "name": zod.string().optional(),
+  "name": zod.string().min(1).optional(),
   "description": zod.string().optional(),
   "address": zod.string().optional(),
   "phone": zod.string().optional(),

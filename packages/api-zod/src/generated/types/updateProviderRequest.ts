@@ -7,6 +7,7 @@
  */
 
 export interface UpdateProviderRequest {
+  /** @minLength 1 */
   name?: string;
   description?: string;
   address?: string;

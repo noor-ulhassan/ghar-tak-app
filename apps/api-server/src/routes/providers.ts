@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable, ordersTable, reviewsTable } from "@workspace/db";
 import { eq, and, ilike, or, count, avg } from "drizzle-orm";
-import { CreateProviderBody } from "@workspace/api-zod";
+import { CreateProviderBody, UpdateMyProviderBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
@@ -130,7 +130,9 @@ router.get("/providers/me", requireAuth, async (req: Request, res: Response) => 
 // PATCH /api/providers/me
 router.patch("/providers/me", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const body = req.body as any;
+  // Only the fields an owner may edit get through; rating, verification, plan and owner are dropped.
+  const body = parseBody(UpdateMyProviderBody, req, res);
+  if (!body) return;
 
   try {
     const [provider] = await db
