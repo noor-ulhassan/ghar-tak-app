@@ -3,6 +3,7 @@ import {
   SIGNED_IN_AS,
   api,
   createCoupon,
+  createOrder,
   createProduct,
   createProvider,
   resetDatabase,
@@ -35,6 +36,22 @@ describe("orders", () => {
     const { store, milk } = await storeWithMilk();
     const res = await api().post("/api/orders").send(orderBody(store.id, milk.id));
     expect(res.status).toBe(401);
+  });
+
+  it.each([
+    ["has no items", { items: [] }],
+    ["has a zero quantity", { items: [{ productId: "x", name: "Milk", quantity: 0, unitPrice: 180 }] }],
+    ["has a fractional quantity", { items: [{ productId: "x", name: "Milk", quantity: 1.5, unitPrice: 180 }] }],
+    ["has a negative price", { items: [{ productId: "x", name: "Milk", quantity: 1, unitPrice: -5 }] }],
+    ["has an unknown payment method", { paymentMethod: "bitcoin" }],
+  ])("rejects an order that %s", async (_label, change) => {
+    const { store, milk } = await storeWithMilk();
+    const res = await api()
+      .post("/api/orders")
+      .set(SIGNED_IN_AS, CUSTOMER)
+      .send(orderBody(store.id, milk.id, change));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid request");
   });
 
   it("places a pending order and totals items plus delivery", async () => {
@@ -106,6 +123,46 @@ describe("orders", () => {
       "pending",
       "confirmed",
     ]);
+  });
+
+  describe("status rules", () => {
+    async function orderIn(status: string) {
+      const store = await createProvider(SELLER);
+      const order = await createOrder(CUSTOMER, store.id, { status });
+      return `/api/orders/${order.id}`;
+    }
+
+    it.each([
+      ["delivered", "processing"],
+      ["delivered", "cancelled"],
+      ["cancelled", "pending"],
+      ["shipped", "confirmed"],
+      ["confirmed", "confirmed"],
+    ])("stops the store moving a %s order to %s", async (from, to) => {
+      const res = await api().patch(await orderIn(from)).set(SIGNED_IN_AS, SELLER).send({ status: to });
+      expect(res.status).toBe(409);
+    });
+
+    it("lets the store skip steps forward", async () => {
+      const res = await api().patch(await orderIn("pending")).set(SIGNED_IN_AS, SELLER).send({ status: "delivered" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("delivered");
+    });
+
+    it.each(["shipped", "delivered"])("stops the customer cancelling a %s order", async (from) => {
+      const res = await api().patch(await orderIn(from)).set(SIGNED_IN_AS, CUSTOMER).send({ status: "cancelled" });
+      expect(res.status).toBe(409);
+    });
+
+    it("lets the customer cancel until the order ships", async () => {
+      const res = await api().patch(await orderIn("processing")).set(SIGNED_IN_AS, CUSTOMER).send({ status: "cancelled" });
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects an unknown status", async () => {
+      const res = await api().patch(await orderIn("pending")).set(SIGNED_IN_AS, SELLER).send({ status: "lost" });
+      expect(res.status).toBe(400);
+    });
   });
 
   it("lets the customer cancel a pending order but not change it otherwise", async () => {

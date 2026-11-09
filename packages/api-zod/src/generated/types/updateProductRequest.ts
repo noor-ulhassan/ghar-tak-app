@@ -7,9 +7,13 @@
  */
 
 export interface UpdateProductRequest {
+  /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minimum 0 */
   price?: number;
+  /** @minimum 0 */
   stock?: number;
   sku?: string;
   imageUrl?: string;

@@ -8,6 +8,7 @@ import {
   clerkProxyMiddleware,
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
+import { errorHandler, notFound } from "./middlewares/errorHandlers";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import type { Logger as PinoLogger } from "pino";
@@ -52,5 +53,7 @@ app.use(
 );
 
 app.use("/api", router);
+app.use("/api", notFound);
+app.use(errorHandler);
 
 export default app;

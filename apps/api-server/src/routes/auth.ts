@@ -2,6 +2,8 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { getAuth } from "@clerk/express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { UpdateMeBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 
 const router: IRouter = Router();
 
@@ -75,7 +77,9 @@ router.get("/auth/me", requireAuth, async (req: Request, res: Response) => {
 // PATCH /api/auth/me
 router.patch("/auth/me", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const { name, phone } = req.body as { name?: string; phone?: string };
+  const body = parseBody(UpdateMeBody, req, res);
+  if (!body) return;
+  const { name, phone } = body;
 
   try {
     const nameParts = name?.split(" ") ?? [];

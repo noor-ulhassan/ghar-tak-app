@@ -107,6 +107,7 @@ export const CreateProviderRequestType = {
 } as const;
 
 export interface CreateProviderRequest {
+  /** @minLength 1 */
   name: string;
   type: CreateProviderRequestType;
   description?: string;
@@ -119,6 +120,7 @@ export interface CreateProviderRequest {
 }
 
 export interface UpdateProviderRequest {
+  /** @minLength 1 */
   name?: string;
   description?: string;
   address?: string;
@@ -161,9 +163,12 @@ export interface Product {
 }
 
 export interface CreateProductRequest {
+  /** @minLength 1 */
   name: string;
   description?: string;
+  /** @minimum 0 */
   price: number;
+  /** @minimum 0 */
   stock: number;
   sku?: string;
   imageUrl?: string;
@@ -171,9 +176,13 @@ export interface CreateProductRequest {
 }
 
 export interface UpdateProductRequest {
+  /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minimum 0 */
   price?: number;
+  /** @minimum 0 */
   stock?: number;
   sku?: string;
   imageUrl?: string;
@@ -196,16 +205,21 @@ export interface Service {
 }
 
 export interface CreateServiceRequest {
+  /** @minLength 1 */
   name: string;
   description?: string;
+  /** @minLength 1 */
   priceRange: string;
   duration?: string;
   category: string;
 }
 
 export interface UpdateServiceRequest {
+  /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minLength 1 */
   priceRange?: string;
   duration?: string;
   category?: string;
@@ -218,7 +232,9 @@ export interface OrderItem {
   /** @nullable */
   serviceId?: string | null;
   name: string;
+  /** @minimum 1 */
   quantity: number;
+  /** @minimum 0 */
   unitPrice: number;
 }
 
@@ -284,11 +300,14 @@ export const CreateOrderRequestPaymentMethod = {
 } as const;
 
 export interface CreateOrderRequest {
+  /** @minLength 1 */
   providerId: string;
+  /** @minItems 1 */
   items: OrderItem[];
   paymentMethod: CreateOrderRequestPaymentMethod;
   deliveryAddress?: string;
   notes?: string;
+  /** @minimum 0 */
   deliveryFee?: number;
   couponCode?: string;
 }
@@ -374,6 +393,7 @@ export interface UpdateAddressRequest {
 
 export interface ValidateCouponRequest {
   code: string;
+  /** @minimum 0 */
   subtotal: number;
 }
 

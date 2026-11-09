@@ -8,5 +8,6 @@
 
 export interface ValidateCouponRequest {
   code: string;
+  /** @minimum 0 */
   subtotal: number;
 }

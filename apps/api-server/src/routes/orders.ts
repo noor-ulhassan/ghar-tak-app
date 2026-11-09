@@ -1,10 +1,39 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, ordersTable, providersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { CreateOrderBody, UpdateOrderStatusBody } from "@workspace/api-zod";
+import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 import { resolveCoupon } from "./coupons";
 
 const router: IRouter = Router();
+
+// The generated schema allows any number; a quantity must also be a whole number.
+const NewOrderBody = CreateOrderBody.extend({
+  items: z
+    .array(CreateOrderBody.shape.items.element.extend({ quantity: z.number().int().min(1) }))
+    .min(1),
+});
+
+// An order only moves forward through these steps; a store may skip steps.
+const ORDER_STEPS = ["pending", "confirmed", "processing", "shipped", "delivered"];
+
+/** Why an order can't move from one status to another, or null if it can. */
+function statusChangeRefusal(from: string, to: string, by: "store" | "customer"): string | null {
+  if (from === to || from === "delivered" || from === "cancelled") {
+    return `This order is already ${from}.`;
+  }
+  if (to === "cancelled") {
+    return by === "customer" && from === "shipped"
+      ? "This order is already on its way and can't be cancelled."
+      : null;
+  }
+  if (ORDER_STEPS.indexOf(to) <= ORDER_STEPS.indexOf(from)) {
+    return `An order can't go back from ${from} to ${to}.`;
+  }
+  return null;
+}
 
 function mapOrder(o: any) {
   return {
@@ -47,7 +76,8 @@ router.get("/orders", requireAuth, async (req: Request, res: Response) => {
 // POST /api/orders
 router.post("/orders", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const body = req.body as any;
+  const body = parseBody(NewOrderBody, req, res);
+  if (!body) return;
 
   try {
     const [provider] = await db
@@ -61,8 +91,8 @@ router.post("/orders", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const subtotal = (body.items as any[]).reduce(
-      (sum: number, item: any) => sum + item.quantity * item.unitPrice,
+    const subtotal = body.items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
       0,
     );
 
@@ -149,7 +179,9 @@ router.get("/orders/:orderId", requireAuth, async (req: Request, res: Response) 
 router.patch("/orders/:orderId", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const { orderId } = req.params as Record<string, string>;
-  const { status } = req.body as { status: string };
+  const body = parseBody(UpdateOrderStatusBody, req, res);
+  if (!body) return;
+  const { status } = body;
 
   try {
     const [order] = await db
@@ -163,7 +195,7 @@ router.patch("/orders/:orderId", requireAuth, async (req: Request, res: Response
       return;
     }
 
-    // Provider can update any status; customer can only cancel
+    // Provider moves the order forward or cancels it; customer can only cancel
     const [provider] = await db
       .select({ userId: providersTable.userId })
       .from(providersTable)
@@ -183,7 +215,14 @@ router.patch("/orders/:orderId", requireAuth, async (req: Request, res: Response
       return;
     }
 
+    const refusal = statusChangeRefusal(order.status, status, isProvider ? "store" : "customer");
+    if (refusal) {
+      res.status(409).json({ error: refusal });
+      return;
+    }
+
     const history = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    // Matching on the old status too means two changes made at once can't both apply.
     const [updated] = await db
       .update(ordersTable)
       .set({
@@ -194,8 +233,13 @@ router.patch("/orders/:orderId", requireAuth, async (req: Request, res: Response
         ] as unknown as object[],
         updatedAt: new Date(),
       })
-      .where(eq(ordersTable.id, orderId))
+      .where(and(eq(ordersTable.id, orderId), eq(ordersTable.status, order.status)))
       .returning();
+
+    if (!updated) {
+      res.status(409).json({ error: "This order was just updated. Refresh and try again." });
+      return;
+    }
 
     res.json(mapOrder(updated));
   } catch (err) {

@@ -40,6 +40,20 @@ describe("providers", () => {
     expect(second.status).toBe(409);
   });
 
+  it("rejects a registration without a name or with an unknown type", async () => {
+    const noName = await api()
+      .post("/api/providers")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "", type: "store" });
+    expect(noName.status).toBe(400);
+
+    const badType = await api()
+      .post("/api/providers")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Shop", type: "bank" });
+    expect(badType.status).toBe(400);
+  });
+
   it("lets the owner edit their business details", async () => {
     await createProvider(SELLER);
     const res = await api()
@@ -61,6 +75,39 @@ describe("providers", () => {
       openingHours: "9am-9pm",
       isOpen: false,
     });
+  });
+
+  it("ignores protected fields when the owner edits their store", async () => {
+    const store = await createProvider(SELLER, { rating: "3.20", reviewCount: 4 });
+    const res = await api()
+      .patch("/api/providers/me")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({
+        name: "Honest Store",
+        isVerified: true,
+        rating: 5,
+        reviewCount: 1000,
+        planId: "pro",
+        userId: "someone-else",
+        id: "new-id",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: store.id,
+      userId: SELLER,
+      name: "Honest Store",
+      isVerified: false,
+      rating: 3.2,
+      reviewCount: 4,
+      planId: "starter",
+    });
+  });
+
+  it("rejects an empty store name", async () => {
+    await createProvider(SELLER);
+    const res = await api().patch("/api/providers/me").set(SIGNED_IN_AS, SELLER).send({ name: "" });
+    expect(res.status).toBe(400);
   });
 
   it("returns dashboard stats for the owner", async () => {

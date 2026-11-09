@@ -424,6 +424,7 @@ function OrdersTab() {
                     <Select
                       value={order.status}
                       onValueChange={(v) => updateStatus.mutate({ orderId: order.id, data: { status: v as any } })}
+                      disabled={order.status === "delivered" || order.status === "cancelled"}
                     >
                       <SelectTrigger className="h-8 w-[130px]">
                         <SelectValue />

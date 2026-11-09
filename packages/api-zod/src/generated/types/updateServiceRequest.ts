@@ -7,8 +7,11 @@
  */
 
 export interface UpdateServiceRequest {
+  /** @minLength 1 */
   name?: string;
-  description?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minLength 1 */
   priceRange?: string;
   duration?: string;
   category?: string;

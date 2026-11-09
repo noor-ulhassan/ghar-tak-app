@@ -7,9 +7,12 @@
  */
 
 export interface CreateProductRequest {
+  /** @minLength 1 */
   name: string;
   description?: string;
+  /** @minimum 0 */
   price: number;
+  /** @minimum 0 */
   stock: number;
   sku?: string;
   imageUrl?: string;
