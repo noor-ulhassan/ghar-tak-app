@@ -23,6 +23,10 @@ export interface Order {
   /** @nullable */
   deliveryAddress?: string | null;
   /** @nullable */
+  deliveryPhone?: string | null;
+  /** @nullable */
+  deliveryInstructions?: string | null;
+  /** @nullable */
   notes?: string | null;
   items: OrderItem[];
   deliveryFee: number;

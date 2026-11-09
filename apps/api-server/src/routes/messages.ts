@@ -6,9 +6,9 @@ import {
   conversations,
   messages,
   providersTable,
-  usersTable,
   type Conversation,
 } from "@workspace/db/schema";
+import { displayName, ensureUser } from "../lib/users";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -22,14 +22,7 @@ function validContent(res: Response, content: unknown): content is string {
 }
 
 async function displayNameOf(clerkUserId: string): Promise<string | null> {
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, clerkUserId))
-    .limit(1);
-  if (!user) return null;
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-  return name || user.email || null;
+  return displayName(await ensureUser(clerkUserId));
 }
 
 // Viewer must be a participant: the customer or the provider owner.
@@ -93,17 +86,13 @@ router.post("/providers/:providerId/messages", requireAuth, async (req, res) => 
       .limit(1);
 
     if (!conversation) {
-      const [customer] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, clerkUserId))
-        .limit(1);
+      const customer = await ensureUser(clerkUserId);
       const snapshot = {
         providerId: provider.id,
         userId: clerkUserId,
-        userName: [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || null,
-        userEmail: customer?.email ?? null,
-        userAvatar: customer?.profileImageUrl ?? null,
+        userName: displayName(customer),
+        userEmail: customer.email,
+        userAvatar: customer.profileImageUrl,
         providerName: provider.name,
         providerAvatar: provider.avatarUrl,
       };

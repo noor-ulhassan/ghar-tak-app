@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { db, productsTable } from "@workspace/db";
 import {
   SIGNED_IN_AS,
   api,
@@ -71,6 +73,191 @@ describe("orders", () => {
       deliveryFee: 50,
       discount: 0,
       paymentMethod: "cash_on_delivery",
+    });
+  });
+
+  describe("server-side pricing", () => {
+    it("ignores a tampered price, name and delivery fee", async () => {
+      const { store, milk } = await storeWithMilk();
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, {
+          deliveryFee: 0,
+          items: [{ productId: milk.id, name: "Gold bar", quantity: 2, unitPrice: 1 }],
+        }));
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ total: 410, deliveryFee: 50 });
+      expect(res.body.items).toEqual([
+        { productId: milk.id, serviceId: null, name: "Milk", quantity: 2, unitPrice: 180 },
+      ]);
+    });
+
+    it("delivers free from Rs 1,500", async () => {
+      const store = await createProvider(SELLER);
+      const rice = await createProduct(store.id, { name: "Rice 5kg", price: "1500" });
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, rice.id, {
+          items: [{ productId: rice.id, name: "Rice 5kg", quantity: 1, unitPrice: 1500 }],
+        }));
+      expect(res.body).toMatchObject({ total: 1500, deliveryFee: 0 });
+    });
+
+    it("adds up decimal prices exactly and merges repeated items", async () => {
+      const store = await createProvider(SELLER);
+      const gum = await createProduct(store.id, { name: "Gum", price: "0.10" });
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, gum.id, {
+          items: [
+            { productId: gum.id, name: "Gum", quantity: 1, unitPrice: 0.1 },
+            { productId: gum.id, name: "Gum", quantity: 2, unitPrice: 0.1 },
+          ],
+        }));
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0].quantity).toBe(3);
+      expect(res.body.total).toBe(50.3);
+    });
+
+    it.each([
+      ["a product from another store", "rival"],
+      ["an unknown product", "missing"],
+    ])("rejects %s", async (_label, which) => {
+      const { store } = await storeWithMilk();
+      const rival = await createProvider("rival-seller");
+      const rivalMilk = await createProduct(rival.id);
+      const productId = which === "rival" ? rivalMilk.id : "does-not-exist";
+
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, productId));
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("stock and opening", () => {
+    async function stockOf(productId: string) {
+      const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId));
+      return product.stock;
+    }
+
+    it("takes ordered items out of stock", async () => {
+      const { store, milk } = await storeWithMilk();
+      await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+      expect(await stockOf(milk.id)).toBe(8);
+    });
+
+    it("refuses more than the store has, and changes nothing", async () => {
+      const store = await createProvider(SELLER);
+      const milk = await createProduct(store.id, { stock: 1 });
+      const res = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("Only 1 of Milk left.");
+      expect(await stockOf(milk.id)).toBe(1);
+    });
+
+    it("refuses an unavailable product and a closed store", async () => {
+      const store = await createProvider(SELLER);
+      const hidden = await createProduct(store.id, { isAvailable: false });
+      expect((await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, hidden.id))).status).toBe(409);
+
+      const closed = await createProvider("closed-seller", { isOpen: false });
+      const bread = await createProduct(closed.id);
+      const res = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(closed.id, bread.id));
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/closed/);
+    });
+
+    it("sells the last item only once when two orders arrive together", async () => {
+      const store = await createProvider(SELLER);
+      const milk = await createProduct(store.id, { stock: 2 });
+      const [a, b] = await Promise.all([
+        api().post("/api/orders").set(SIGNED_IN_AS, "customer-a").send(orderBody(store.id, milk.id)),
+        api().post("/api/orders").set(SIGNED_IN_AS, "customer-b").send(orderBody(store.id, milk.id)),
+      ]);
+
+      expect([a.status, b.status].sort()).toEqual([201, 409]);
+      expect(await stockOf(milk.id)).toBe(0);
+    });
+
+    it("puts stock back when an order is cancelled", async () => {
+      const { store, milk } = await storeWithMilk();
+      const placed = await api().post("/api/orders").set(SIGNED_IN_AS, CUSTOMER).send(orderBody(store.id, milk.id));
+      await api().patch(`/api/orders/${placed.body.id}`).set(SIGNED_IN_AS, CUSTOMER).send({ status: "cancelled" });
+      expect(await stockOf(milk.id)).toBe(10);
+    });
+
+    it("leaves stock alone when cancelling an order placed before stock tracking", async () => {
+      const { store, milk } = await storeWithMilk();
+      const old = await createOrder(CUSTOMER, store.id, {
+        items: [{ productId: milk.id, name: "Milk", quantity: 2, unitPrice: 180 }],
+      });
+      await api().patch(`/api/orders/${old.id}`).set(SIGNED_IN_AS, SELLER).send({ status: "cancelled" });
+      expect(await stockOf(milk.id)).toBe(10);
+    });
+  });
+
+  describe("delivery details", () => {
+    async function saveAddress(as: string, fields: Record<string, unknown> = {}) {
+      const res = await api()
+        .post("/api/addresses")
+        .set(SIGNED_IN_AS, as)
+        .send({
+          line1: "House 12, Street 4, Gulberg III",
+          city: "Lahore",
+          phone: "0300 1234567",
+          instructions: "Green gate, ring twice",
+          ...fields,
+        });
+      return res.body.id as string;
+    }
+
+    it("copies the saved address, phone and instructions onto the order", async () => {
+      const { store, milk } = await storeWithMilk();
+      const addressId = await saveAddress(CUSTOMER);
+
+      const placed = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId, deliveryAddress: "ignored" }));
+      expect(placed.status).toBe(201);
+      expect(placed.body).toMatchObject({
+        deliveryAddress: "House 12, Street 4, Gulberg III, Lahore",
+        deliveryPhone: "0300 1234567",
+        deliveryInstructions: "Green gate, ring twice",
+      });
+
+      const incoming = await api().get("/api/provider-orders").set(SIGNED_IN_AS, SELLER);
+      expect(incoming.body[0].deliveryPhone).toBe("0300 1234567");
+    });
+
+    it("falls back to the profile phone when the address has none", async () => {
+      const { store, milk } = await storeWithMilk();
+      await api().patch("/api/auth/me").set(SIGNED_IN_AS, CUSTOMER).send({ phone: "0321 7654321" });
+      const addressId = await saveAddress(CUSTOMER, { phone: undefined });
+
+      const placed = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId }));
+      expect(placed.body.deliveryPhone).toBe("0321 7654321");
+    });
+
+    it("refuses someone else's saved address", async () => {
+      const { store, milk } = await storeWithMilk();
+      const theirs = await saveAddress("other-customer");
+
+      const res = await api()
+        .post("/api/orders")
+        .set(SIGNED_IN_AS, CUSTOMER)
+        .send(orderBody(store.id, milk.id, { addressId: theirs }));
+      expect(res.status).toBe(400);
     });
   });
 

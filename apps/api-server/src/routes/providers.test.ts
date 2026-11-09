@@ -119,4 +119,14 @@ describe("providers", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ totalProducts: 1, totalOrders: 1, totalRevenue: 500 });
   });
+
+  it("counts only delivered orders as revenue", async () => {
+    const store = await createProvider(SELLER);
+    await createOrder("customer-1", store.id, { total: "500", status: "delivered" });
+    await createOrder("customer-2", store.id, { total: "300", status: "pending" });
+    await createOrder("customer-3", store.id, { total: "200", status: "cancelled" });
+
+    const res = await api().get("/api/providers/me/stats").set(SIGNED_IN_AS, SELLER);
+    expect(res.body).toMatchObject({ totalRevenue: 500, totalOrders: 2, pendingOrders: 1 });
+  });
 });

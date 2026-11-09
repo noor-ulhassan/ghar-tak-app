@@ -393,11 +393,12 @@ function OrdersTab() {
         </div>
       ) : (
         <div className="border rounded-lg overflow-x-auto">
-          <Table className="min-w-[640px]">
+          <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Order</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Deliver to</TableHead>
                 <TableHead>Items</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Status</TableHead>
@@ -410,6 +411,18 @@ function OrdersTab() {
                 <TableRow key={order.id}>
                   <TableCell className="font-medium font-mono text-xs">{order.id.slice(0, 8).toUpperCase()}</TableCell>
                   <TableCell>{order.customerName ?? "Customer"}</TableCell>
+                  <TableCell className="max-w-[220px] text-sm">
+                    <p>{order.deliveryAddress ?? "No address given"}</p>
+                    {order.deliveryPhone && (
+                      <a href={`tel:${order.deliveryPhone.replace(/\s/g, "")}`} className="text-primary hover:underline">
+                        {order.deliveryPhone}
+                      </a>
+                    )}
+                    {order.deliveryInstructions && (
+                      <p className="text-xs text-muted-foreground">{order.deliveryInstructions}</p>
+                    )}
+                    {order.notes && <p className="text-xs text-muted-foreground italic">Note: {order.notes}</p>}
+                  </TableCell>
                   <TableCell className="max-w-[180px] truncate text-sm">
                     {Array.isArray(order.items)
                       ? order.items.map((i: any) => `${i.quantity}× ${i.name}`).join(", ")

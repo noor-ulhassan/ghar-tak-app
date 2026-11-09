@@ -22,6 +22,7 @@ export default function ProductCard({ product, providerId, providerName, onSelec
 
   const cartItem = items.find((i) => i.product.id === product.id);
   const quantity = cartItem?.quantity ?? 0;
+  const stock = product.stock ?? 0;
 
   function handleAdd() {
     if (!providerId) return;
@@ -68,6 +69,10 @@ export default function ProductCard({ product, providerId, providerName, onSelec
           <Button variant="default" className="w-full" disabled>
             <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
           </Button>
+        ) : stock <= 0 && quantity === 0 ? (
+          <Button variant="default" className="w-full" disabled>
+            Out of Stock
+          </Button>
         ) : quantity === 0 ? (
           <Button variant="default" className="w-full" onClick={handleAdd}>
             <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
@@ -89,6 +94,7 @@ export default function ProductCard({ product, providerId, providerName, onSelec
               variant="outline"
               size="icon"
               onClick={() => updateQuantity(product.id, quantity + 1)}
+              disabled={quantity >= stock}
               aria-label="Increase quantity"
             >
               <Plus className="h-4 w-4" />
