@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBookings, type ServiceBooking } from "@/context/BookingsContext";
@@ -52,7 +52,8 @@ export default function BookingsScreen() {
       justifyContent: "center",
     },
     headerTitle: { fontSize: 18, fontWeight: "700" as const, color: colors.foreground, fontFamily: "Inter_700Bold" },
-    content: { padding: 16, gap: 12 },
+    content: { padding: 16 },
+    separator: { height: 12 },
     card: {
       backgroundColor: colors.card,
       borderRadius: 16,
@@ -101,8 +102,15 @@ export default function BookingsScreen() {
         <Text style={styles.headerTitle}>My Bookings</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {bookings.length === 0 ? (
+      {/* Bookings only grow over time, so only the ones near the screen are mounted. */}
+      <FlatList
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        data={bookings}
+        keyExtractor={(booking) => booking.id}
+        extraData={confirmId}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="calendar" size={44} color={colors.mutedForeground} />
             <Text style={styles.emptyTitle}>No bookings yet</Text>
@@ -113,61 +121,60 @@ export default function BookingsScreen() {
               <Text style={styles.browseText}>Browse Services</Text>
             </Pressable>
           </View>
-        ) : (
-          bookings.map((booking) => (
-            <View key={booking.id} style={styles.card}>
-              <View style={styles.cardTop}>
-                <Text style={styles.provider} numberOfLines={1}>{booking.providerName}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[booking.status] + "20" }]}>
-                  <Text style={[styles.statusText, { color: STATUS_COLORS[booking.status] }]}>
-                    {STATUS_LABELS[booking.status]}
-                  </Text>
-                </View>
+        }
+        renderItem={({ item: booking }) => (
+          <View style={styles.card}>
+            <View style={styles.cardTop}>
+              <Text style={styles.provider} numberOfLines={1}>{booking.providerName}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[booking.status] + "20" }]}>
+                <Text style={[styles.statusText, { color: STATUS_COLORS[booking.status] }]}>
+                  {STATUS_LABELS[booking.status]}
+                </Text>
               </View>
-
-              <Text style={styles.service}>{booking.serviceName}</Text>
-
-              <View style={styles.metaRow}>
-                <Feather name="calendar" size={14} color={colors.mutedForeground} />
-                <Text style={styles.meta}>{formatDate(booking.date)} • {booking.timeSlot}</Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-                <Text style={styles.meta} numberOfLines={2}>{booking.address}</Text>
-              </View>
-              {booking.notes ? (
-                <View style={styles.metaRow}>
-                  <Feather name="file-text" size={14} color={colors.mutedForeground} />
-                  <Text style={styles.notes} numberOfLines={2}>{booking.notes}</Text>
-                </View>
-              ) : null}
-
-              <View style={styles.cardBottom}>
-                <Text style={styles.price}>{booking.priceRange}</Text>
-              </View>
-
-              {booking.status === "pending" && (
-                <Pressable
-                  style={styles.cancelBtn}
-                  onPress={() => {
-                    if (confirmId === booking.id) {
-                      cancelBooking(booking.id);
-                      setConfirmId(null);
-                    } else {
-                      setConfirmId(booking.id);
-                    }
-                  }}
-                >
-                  <Text style={styles.cancelText}>
-                    {confirmId === booking.id ? "Tap again to confirm cancel" : "Cancel booking"}
-                  </Text>
-                </Pressable>
-              )}
             </View>
-          ))
+
+            <Text style={styles.service}>{booking.serviceName}</Text>
+
+            <View style={styles.metaRow}>
+              <Feather name="calendar" size={14} color={colors.mutedForeground} />
+              <Text style={styles.meta}>{formatDate(booking.date)} • {booking.timeSlot}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+              <Text style={styles.meta} numberOfLines={2}>{booking.address}</Text>
+            </View>
+            {booking.notes ? (
+              <View style={styles.metaRow}>
+                <Feather name="file-text" size={14} color={colors.mutedForeground} />
+                <Text style={styles.notes} numberOfLines={2}>{booking.notes}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.cardBottom}>
+              <Text style={styles.price}>{booking.priceRange}</Text>
+            </View>
+
+            {booking.status === "pending" && (
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={() => {
+                  if (confirmId === booking.id) {
+                    cancelBooking(booking.id);
+                    setConfirmId(null);
+                  } else {
+                    setConfirmId(booking.id);
+                  }
+                }}
+              >
+                <Text style={styles.cancelText}>
+                  {confirmId === booking.id ? "Tap again to confirm cancel" : "Cancel booking"}
+                </Text>
+              </Pressable>
+            )}
+          </View>
         )}
-        <View style={styles.footer} />
-      </ScrollView>
+        ListFooterComponent={<View style={styles.footer} />}
+      />
     </View>
   );
 }

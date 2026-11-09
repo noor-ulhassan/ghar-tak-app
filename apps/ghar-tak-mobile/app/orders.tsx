@@ -2,9 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
+  FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -126,11 +126,16 @@ export default function OrdersScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {orders.map((order) => {
+        // Order history only grows, so only the orders near the screen are mounted.
+        <FlatList
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          data={orders}
+          keyExtractor={(order) => order.id}
+          renderItem={({ item: order }) => {
             const statusColor = STATUS_COLORS[order.status] ?? "#f59e0b";
             return (
-              <View key={order.id} style={styles.orderCard}>
+              <View style={styles.orderCard}>
                 <View style={styles.orderHeader}>
                   <View>
                     <Text style={styles.orderId}>Order {order.id.replace("order_", "#")}</Text>
@@ -167,9 +172,9 @@ export default function OrdersScreen() {
                 </View>
               </View>
             );
-          })}
-          <View style={styles.footer} />
-        </ScrollView>
+          }}
+          ListFooterComponent={<View style={styles.footer} />}
+        />
       )}
     </View>
   );
