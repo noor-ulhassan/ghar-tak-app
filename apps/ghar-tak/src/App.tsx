@@ -53,7 +53,19 @@ if (!clerkPubKey) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY');
 }
 
-const queryClient = new QueryClient();
+// A 4xx answer (not found, not allowed) won't change on a retry, so show it straight away
+// instead of retrying three times. Network and server errors keep the usual retries.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        if (typeof status === 'number' && status >= 400 && status < 500) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
 
 // Branded Clerk appearance matching the app's purple/green palette
 const clerkAppearance = {

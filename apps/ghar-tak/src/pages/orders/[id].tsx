@@ -42,6 +42,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiErrorReason } from '@/lib/api-error';
 
 const TIMELINE_STEPS = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'] as const;
 
@@ -66,7 +67,7 @@ const STATUS_STYLES: Record<string, string> = {
 const STEP_ICONS = [Clock, Check, Package, Truck, CheckCircle2];
 
 export default function OrderTrackingPage({ params }: { params: { id: string } }) {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const orderId = params.id;
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
@@ -74,7 +75,15 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
   const { addItems, openCart } = useCart();
 
   const { data: order, isLoading, isError } = useGetOrder(orderId, {
-    query: { enabled: !!orderId && !!user, queryKey: getGetOrderQueryKey(orderId) },
+    query: {
+      enabled: !!orderId && !!user,
+      queryKey: getGetOrderQueryKey(orderId),
+      // Follow the store's progress without a reload; stop once the order is finished.
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === 'delivered' || status === 'cancelled' ? false : 15000;
+      },
+    },
   });
 
   const { data: catalog } = useListProviderProducts(order?.providerId ?? '', undefined, {
@@ -94,7 +103,11 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
         setCancelOpen(false);
         toast({ title: 'Order cancelled', description: 'The store has been notified.' });
       },
-      onError: () => toast({ title: 'Could not cancel order', description: 'Please try again.', variant: 'destructive' }),
+      onError: (err) => {
+        // A 409 means the store already moved the order on (for example, shipped it).
+        queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(orderId) });
+        toast({ title: 'Could not cancel order', description: apiErrorReason(err) ?? 'Please try again.', variant: 'destructive' });
+      },
     },
   });
 
@@ -105,7 +118,7 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
         setComment('');
         toast({ title: 'Thanks for the review', description: 'Your rating helps other shoppers.' });
       },
-      onError: () => toast({ title: 'Could not submit review', variant: 'destructive' }),
+      onError: (err) => toast({ title: 'Could not submit review', description: apiErrorReason(err), variant: 'destructive' }),
     },
   });
 
@@ -151,6 +164,11 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
     ].filter(Boolean);
     openCart();
     toast({ title: 'Items added to cart', description: notes.join(' ') || undefined });
+  }
+
+  // Wait for sign-in to load before deciding the customer is signed out.
+  if (!isLoaded) {
+    return <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
   }
 
   if (!user) {

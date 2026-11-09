@@ -6,6 +6,12 @@ import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
 
+// Customers and providers are in Pakistan, so "today" follows Pakistan's calendar,
+// not the server's. Returns YYYY-MM-DD, which compares correctly as text.
+function calendarDay(date: Date): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+}
+
 function mapBooking(b: any) {
   return {
     id: b.id,
@@ -46,6 +52,10 @@ router.post("/bookings", requireAuth, async (req: Request, res: Response) => {
   const bookingDate = new Date(body.bookingDate);
   if (Number.isNaN(bookingDate.getTime())) {
     res.status(400).json({ error: "bookingDate is invalid" });
+    return;
+  }
+  if (calendarDay(bookingDate) < calendarDay(new Date())) {
+    res.status(400).json({ error: "bookingDate can't be in the past" });
     return;
   }
 

@@ -151,6 +151,10 @@ export default function ServiceProviderDetailPage({ params }: { params: { catego
       toast({ title: 'Add your address', description: 'The provider needs to know where to come.', variant: 'destructive' });
       return;
     }
+    if (!bookingDate || bookingDate < todayInputValue()) {
+      toast({ title: 'Choose a date', description: 'Pick today or a later day for the visit.', variant: 'destructive' });
+      return;
+    }
     createBooking.mutate({
       data: {
         providerId: provider.id,
