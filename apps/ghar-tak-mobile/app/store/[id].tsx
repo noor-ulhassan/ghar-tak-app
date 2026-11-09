@@ -4,9 +4,9 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -87,7 +87,9 @@ export default function StoreDetailScreen() {
       paddingHorizontal: 3,
     },
     cartBadgeText: { fontSize: 10, color: "#fff", fontFamily: "Inter_700Bold" },
-    content: { padding: 20 },
+    // Header and footer keep the old 20px side padding; product cards get it as a margin.
+    header: { paddingHorizontal: 20, paddingTop: 20 },
+    listEdge: { paddingHorizontal: 20 },
     row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
     name: {
       fontSize: 22,
@@ -133,6 +135,7 @@ export default function StoreDetailScreen() {
       marginBottom: 12,
     },
     productCard: {
+      marginHorizontal: 20,
       flexDirection: "row",
       backgroundColor: colors.card,
       borderRadius: 12,
@@ -253,86 +256,99 @@ export default function StoreDetailScreen() {
     );
   };
 
+  // A FlatList only mounts the products near the screen, so a store with hundreds
+  // of products opens about as fast as one with three.
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.imageWrap}>
-        <Image
-          source={{ uri: store.imageUrl }}
-          style={styles.heroImage}
-          contentFit="cover"
-          transition={200}
-          cachePolicy="memory-disk"
-        />
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color="#fff" />
-        </Pressable>
-        <Pressable
-          style={styles.favBtn}
-          onPress={async () => {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setFavorited((f) => !f);
-          }}
-        >
-          <Feather name="heart" size={20} color={favorited ? "#ef4444" : "#fff"} />
-        </Pressable>
-        <Pressable style={styles.cartBtn} onPress={() => router.push("/cart" as any)}>
-          <Feather name="shopping-cart" size={20} color="#fff" />
-          {totalItems > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{totalItems}</Text>
+    <FlatList
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      data={products}
+      keyExtractor={(p) => p.id}
+      renderItem={({ item }) => renderProductCard(item)}
+      extraData={quantities}
+      ListHeaderComponent={
+        <>
+          <View style={styles.imageWrap}>
+            <Image
+              source={{ uri: store.imageUrl }}
+              style={styles.heroImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
+            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+              <Feather name="arrow-left" size={20} color="#fff" />
+            </Pressable>
+            <Pressable
+              style={styles.favBtn}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setFavorited((f) => !f);
+              }}
+            >
+              <Feather name="heart" size={20} color={favorited ? "#ef4444" : "#fff"} />
+            </Pressable>
+            <Pressable style={styles.cartBtn} onPress={() => router.push("/cart" as any)}>
+              <Feather name="shopping-cart" size={20} color="#fff" />
+              {totalItems > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{totalItems}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.header}>
+            <View style={styles.row}>
+              <Text style={styles.name}>{store.name}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{store.category}</Text>
+              </View>
             </View>
+            <Text style={styles.desc}>{store.description}</Text>
+
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Feather name="star" size={14} color="#f59e0b" />
+                <Text style={styles.metaText}>{store.rating}</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Feather name="clock" size={14} color={colors.mutedForeground} />
+                <Text style={styles.metaMuted}>{store.deliveryTime}</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+                <Text style={styles.metaMuted} numberOfLines={1}>{store.location.address}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Products</Text>
+          </View>
+        </>
+      }
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <Feather name="package" size={32} color={colors.mutedForeground} />
+          <Text style={styles.emptyText}>No products listed</Text>
+        </View>
+      }
+      ListFooterComponent={
+        <View style={styles.listEdge}>
+          {totalItems > 0 && (
+            <Pressable
+              style={styles.viewCartBtn}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push("/cart" as any);
+              }}
+            >
+              <Feather name="shopping-cart" size={18} color="#fff" />
+              <Text style={styles.viewCartBtnText}>View Cart ({totalItems})</Text>
+            </Pressable>
           )}
-        </Pressable>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.row}>
-          <Text style={styles.name}>{store.name}</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{store.category}</Text>
-          </View>
+          <View style={styles.footer} />
         </View>
-        <Text style={styles.desc}>{store.description}</Text>
-
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Feather name="star" size={14} color="#f59e0b" />
-            <Text style={styles.metaText}>{store.rating}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Feather name="clock" size={14} color={colors.mutedForeground} />
-            <Text style={styles.metaMuted}>{store.deliveryTime}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-            <Text style={styles.metaMuted} numberOfLines={1}>{store.location.address}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Products</Text>
-        {products.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="package" size={32} color={colors.mutedForeground} />
-            <Text style={styles.emptyText}>No products listed</Text>
-          </View>
-        ) : (
-          products.map(renderProductCard)
-        )}
-
-        {totalItems > 0 && (
-          <Pressable
-            style={styles.viewCartBtn}
-            onPress={async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push("/cart" as any);
-            }}
-          >
-            <Feather name="shopping-cart" size={18} color="#fff" />
-            <Text style={styles.viewCartBtnText}>View Cart ({totalItems})</Text>
-          </Pressable>
-        )}
-        <View style={styles.footer} />
-      </View>
-    </ScrollView>
+      }
+    />
   );
 }

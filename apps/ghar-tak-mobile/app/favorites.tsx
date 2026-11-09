@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -73,35 +73,35 @@ export default function FavoritesScreen() {
         </Pressable>
         <Text style={styles.title}>Favorites</Text>
       </View>
-      <ScrollView>
-        <View style={styles.content}>
-          {favorites.length === 0 ? (
-            <View style={styles.empty}>
-              <Feather name="heart" size={40} color={colors.mutedForeground} />
-              <Text style={styles.emptyText}>No favorites yet</Text>
-              <Text style={styles.emptySubtext}>Tap the heart icon on any store to save it here</Text>
+      {/* Only the favorites near the screen are mounted, however many a customer saves. */}
+      <FlatList
+        contentContainerStyle={styles.content}
+        data={favorites}
+        keyExtractor={(store) => store.id}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Feather name="heart" size={40} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No favorites yet</Text>
+            <Text style={styles.emptySubtext}>Tap the heart icon on any store to save it here</Text>
+          </View>
+        }
+        renderItem={({ item: store }) => (
+          <Pressable
+            style={styles.card}
+            onPress={() => router.push({ pathname: "/store/[id]", params: { id: store.id } })}
+          >
+            <View style={styles.iconWrap}>
+              <Feather name="heart" size={22} color="#ef4444" />
             </View>
-          ) : (
-            favorites.map((store) => (
-              <Pressable
-                key={store.id}
-                style={styles.card}
-                onPress={() => router.push({ pathname: "/store/[id]", params: { id: store.id } })}
-              >
-                <View style={styles.iconWrap}>
-                  <Feather name="heart" size={22} color="#ef4444" />
-                </View>
-                <View style={styles.info}>
-                  <Text style={styles.name}>{store.name}</Text>
-                  <Text style={styles.meta}>{store.category} • {store.rating} ★ • {store.deliveryTime}</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-              </Pressable>
-            ))
-          )}
-        </View>
-        <View style={styles.footer} />
-      </ScrollView>
+            <View style={styles.info}>
+              <Text style={styles.name}>{store.name}</Text>
+              <Text style={styles.meta}>{store.category} • {store.rating} ★ • {store.deliveryTime}</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        ListFooterComponent={<View style={styles.footer} />}
+      />
     </View>
   );
 }

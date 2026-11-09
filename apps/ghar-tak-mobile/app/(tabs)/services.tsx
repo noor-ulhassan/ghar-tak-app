@@ -2,10 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
+  FlatList,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -54,7 +54,8 @@ export default function ServicesScreen() {
       marginTop: 4,
       marginLeft: 46,
     },
-    content: { padding: 16 },
+    // Header keeps the old 16px padding; provider cards get the same side margin.
+    listHeader: { paddingHorizontal: 16, paddingTop: 16 },
     sectionTitle: {
       fontSize: 16,
       fontWeight: "600" as const,
@@ -95,6 +96,7 @@ export default function ServicesScreen() {
 
     providerSection: { marginTop: 24 },
     provCard: {
+      marginHorizontal: 16,
       flexDirection: "row",
       backgroundColor: colors.card,
       borderRadius: 14,
@@ -145,7 +147,8 @@ export default function ServicesScreen() {
         <Text style={styles.subtitle}>Find local professionals</Text>
       </View>
 
-      <ScrollView
+      {/* A FlatList only mounts the providers near the screen, so a long list stays fast. */}
+      <FlatList
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -156,8 +159,10 @@ export default function ServicesScreen() {
             colors={[colors.primary]}
           />
         }
-      >
-        <View style={styles.content}>
+        data={serviceProviders}
+        keyExtractor={(p) => p.id}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
             {/* Categories grid — mirrors web's ServiceCategoriesSection */}
             <Text style={styles.sectionTitle}>Browse by Category</Text>
             <View style={styles.grid}>
@@ -180,36 +185,36 @@ export default function ServicesScreen() {
             {/* Featured Providers — mirrors web's NearbyProvidersSection */}
             <View style={styles.providerSection}>
               <Text style={styles.sectionTitle}>Featured Providers</Text>
-              {serviceProviders.map((p) => (
-                <Pressable
-                  key={p.id}
-                  style={styles.provCard}
-                  onPress={() =>
-                    router.push({ pathname: "/provider/[id]", params: { id: p.id } })
-                  }
-                >
-                  <View style={styles.provAvatar}>
-                    <Feather name="user" size={22} color={colors.primary} />
-                  </View>
-                  <View style={styles.provInfo}>
-                    <Text style={styles.provName} numberOfLines={1}>{p.name}</Text>
-                    <Text style={styles.provCat}>
-                      {serviceCategories.find((c) => c.id === p.serviceCategory)?.name ?? p.serviceCategory}
-                    </Text>
-                    <View style={styles.provMeta}>
-                      <Feather name="star" size={12} color="#f59e0b" />
-                      <Text style={styles.metaText}>{p.rating}</Text>
-                      <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-                      <Text style={styles.metaMuted}>{p.location.address}</Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-                </Pressable>
-              ))}
             </View>
           </View>
-        <View style={styles.footer} />
-      </ScrollView>
+        }
+        renderItem={({ item: p }) => (
+          <Pressable
+            style={styles.provCard}
+            onPress={() =>
+              router.push({ pathname: "/provider/[id]", params: { id: p.id } })
+            }
+          >
+            <View style={styles.provAvatar}>
+              <Feather name="user" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.provInfo}>
+              <Text style={styles.provName} numberOfLines={1}>{p.name}</Text>
+              <Text style={styles.provCat}>
+                {serviceCategories.find((c) => c.id === p.serviceCategory)?.name ?? p.serviceCategory}
+              </Text>
+              <View style={styles.provMeta}>
+                <Feather name="star" size={12} color="#f59e0b" />
+                <Text style={styles.metaText}>{p.rating}</Text>
+                <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+                <Text style={styles.metaMuted}>{p.location.address}</Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+        ListFooterComponent={<View style={styles.footer} />}
+      />
     </View>
   );
 }
