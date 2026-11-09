@@ -20,16 +20,22 @@ const defaultLocation: Location = {
   address: DEFAULT_ADDRESS,
 };
 
-function readStoredLocation(): Location | null {
+// After a day the saved location may be out of date (the customer moved), so it is refreshed.
+const MAX_LOCATION_AGE_MS = 24 * 60 * 60 * 1000;
+
+function readStoredLocation(): { location: Location; savedAt: number } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<Location>;
+    const parsed = JSON.parse(raw) as Partial<Location> & { savedAt?: number };
     if (typeof parsed.lat !== 'number' || typeof parsed.lng !== 'number') return null;
     return {
-      lat: parsed.lat,
-      lng: parsed.lng,
-      address: parsed.address || 'Your Current Location',
+      location: {
+        lat: parsed.lat,
+        lng: parsed.lng,
+        address: parsed.address || 'Your Current Location',
+      },
+      savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0,
     };
   } catch {
     return null;
@@ -37,14 +43,17 @@ function readStoredLocation(): Location | null {
 }
 
 function persistLocation(location: Location) {
+  locationSavedAt = Date.now();
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(location));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...location, savedAt: locationSavedAt }));
   } catch {
     // Storage can be unavailable (private mode, quota) — the in-memory cache still works.
   }
 }
 
-let cachedLocation: Location | null = readStoredLocation();
+const storedLocation = readStoredLocation();
+let cachedLocation: Location | null = storedLocation?.location ?? null;
+let locationSavedAt = storedLocation?.savedAt ?? 0;
 let pendingRequest: Promise<Location | null> | null = null;
 
 function requestBrowserLocation(): Promise<Location | null> {
@@ -111,7 +120,12 @@ export function useLocation(): UseLocationReturn {
     };
 
     window.addEventListener(LOCATION_EVENT, onLocationChange);
-    if (!cachedLocation) void fetchLocation();
+    if (!cachedLocation) {
+      void fetchLocation();
+    } else if (Date.now() - locationSavedAt > MAX_LOCATION_AGE_MS) {
+      // Refresh quietly: the old location stays on screen, and stays if the refresh fails.
+      void requestBrowserLocation();
+    }
 
     return () => window.removeEventListener(LOCATION_EVENT, onLocationChange);
   }, [fetchLocation]);

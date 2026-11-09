@@ -1,4 +1,4 @@
-import { useListProviders } from '@workspace/api-client-react';
+import { useListProviders, getListProvidersQueryKey } from '@workspace/api-client-react';
 import StoreCard from '@/components/shared/StoreCard';
 import SearchInput from '@/components/shared/SearchInput';
 import { ShoppingCart, Loader2 } from 'lucide-react';
@@ -7,12 +7,17 @@ import { useLocation } from '@/hooks/useLocation';
 import { providerDistance, sortByDistance } from '@/lib/geo';
 
 export default function AllStoresPage() {
-  const { data: stores, isLoading } = useListProviders({ type: 'store' }, { query: { queryKey: ["listProviders", { type: 'store' }] } });
+  // Restaurants sell through the same store page, so they are listed with the stores.
+  const { data: providers, isLoading } = useListProviders({}, { query: { queryKey: getListProvidersQueryKey({}) } });
+  const stores = useMemo(
+    () => (Array.isArray(providers) ? providers : []).filter((p) => p.type !== 'service'),
+    [providers]
+  );
   const { location, hasRealLocation } = useLocation();
   const origin = hasRealLocation ? location : null;
 
   const sortedStores = useMemo(
-    () => sortByDistance(Array.isArray(stores) ? stores : [], origin),
+    () => sortByDistance(stores, origin),
     [stores, origin]
   );
   

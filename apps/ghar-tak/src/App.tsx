@@ -119,6 +119,28 @@ const clerkAppearance = {
   },
 };
 
+// Signing in or up brings the customer back to the page they were on, not Home.
+const RETURN_PATH_KEY = 'ghar_tak_return_path';
+
+function ReturnPathRecorder() {
+  const [location] = useLocation();
+  useEffect(() => {
+    if (location.startsWith('/sign-in') || location.startsWith('/sign-up')) return;
+    try {
+      sessionStorage.setItem(RETURN_PATH_KEY, location + window.location.search);
+    } catch { /* storage unavailable: fall back to Home */ }
+  }, [location]);
+  return null;
+}
+
+function returnUrl(): string {
+  let path = '/';
+  try {
+    path = sessionStorage.getItem(RETURN_PATH_KEY) || '/';
+  } catch { /* use Home */ }
+  return `${basePath}${path}`;
+}
+
 function SignInPageComponent() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-purple-50 via-white to-green-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-12">
@@ -127,7 +149,13 @@ function SignInPageComponent() {
           <h1 className="text-3xl font-bold text-purple-700 dark:text-purple-400 mb-1">Ghar Tak</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Your neighborhood marketplace</p>
         </div>
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        <SignIn
+          routing="path"
+          path={`${basePath}/sign-in`}
+          signUpUrl={`${basePath}/sign-up`}
+          fallbackRedirectUrl={returnUrl()}
+          signUpFallbackRedirectUrl={returnUrl()}
+        />
       </div>
     </div>
   );
@@ -141,7 +169,13 @@ function SignUpPageComponent() {
           <h1 className="text-3xl font-bold text-purple-700 dark:text-purple-400 mb-1">Join Ghar Tak</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Discover your neighborhood</p>
         </div>
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        <SignUp
+          routing="path"
+          path={`${basePath}/sign-up`}
+          signInUrl={`${basePath}/sign-in`}
+          fallbackRedirectUrl={returnUrl()}
+          signInFallbackRedirectUrl={returnUrl()}
+        />
       </div>
     </div>
   );
@@ -240,6 +274,7 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryCacheInvalidator />
         <ApiClientAuthSync />
+        <ReturnPathRecorder />
         <DataProvider>
           <CartProvider>
             <Layout>

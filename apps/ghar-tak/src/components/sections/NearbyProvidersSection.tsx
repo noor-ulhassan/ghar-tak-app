@@ -1,4 +1,4 @@
-import { useListProviders } from '@workspace/api-client-react';
+import { useListProviders, getListProvidersQueryKey } from '@workspace/api-client-react';
 import StoreCard from '@/components/shared/StoreCard';
 import ServiceCard from '@/components/shared/ServiceCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,12 +12,14 @@ import { providerDistance, sortByDistance } from '@/lib/geo';
 const SORTED_ITEMS_COUNT = 3;
 
 export default function NearbyProvidersSection() {
-  const { data: stores, isLoading: storesLoading } = useListProviders({ type: 'store' }, { query: { queryKey: ["listProviders", { type: 'store' }] } });
+  // Restaurants are listed with the stores (they sell through the same store page).
+  const { data: allProviders, isLoading: storesLoading } = useListProviders({}, { query: { queryKey: getListProvidersQueryKey({}) } });
+  const stores = (Array.isArray(allProviders) ? allProviders : []).filter((p) => p.type !== 'service');
   const { data: services, isLoading: servicesLoading } = useListProviders({ type: 'service' }, { query: { queryKey: ["listProviders", { type: 'service' }] } });
   const { location, hasRealLocation } = useLocation();
 
   const origin = hasRealLocation ? location : null;
-  const sortedStores = sortByDistance(Array.isArray(stores) ? stores : [], origin).slice(0, SORTED_ITEMS_COUNT);
+  const sortedStores = sortByDistance(stores, origin).slice(0, SORTED_ITEMS_COUNT);
   const sortedServiceProviders = sortByDistance(Array.isArray(services) ? services : [], origin).slice(0, SORTED_ITEMS_COUNT);
 
   const renderContent = (
