@@ -102,6 +102,49 @@ describe("products and services", () => {
     expect(fractional.status).toBe(400);
   });
 
+  it("lets the owner clear a product's SKU and image and a service's duration", async () => {
+    const store = await createProvider(SELLER);
+    const milk = await createProduct(store.id, { sku: "SKU-OLD", imageUrl: "https://img.example.test/x.png" });
+    const product = await api()
+      .patch(`/api/products/${milk.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ sku: null, imageUrl: null });
+    expect(product.status).toBe(200);
+    expect(product.body).toMatchObject({ sku: null, imageUrl: null });
+
+    const repair = await createService(store.id, { duration: "2 hours" });
+    const service = await api()
+      .patch(`/api/services/${repair.id}`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ duration: null });
+    expect(service.status).toBe(200);
+    expect(service.body.duration).toBeNull();
+  });
+
+  it("names the field when product or service input is too long or too large", async () => {
+    const store = await createProvider(SELLER);
+    const longCategory = await api()
+      .post(`/api/providers/${store.id}/products`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Milk", price: 180, stock: 1, category: "x".repeat(101) });
+    expect(longCategory.status).toBe(400);
+    expect(longCategory.body.fields[0].field).toBe("category");
+
+    const hugePrice = await api()
+      .post(`/api/providers/${store.id}/products`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Gold", price: 100000000, stock: 1, category: "Jewellery" });
+    expect(hugePrice.status).toBe(400);
+    expect(hugePrice.body.fields[0].field).toBe("price");
+
+    const longDuration = await api()
+      .post(`/api/providers/${store.id}/services`)
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Repair", priceRange: "PKR 500", category: "General", duration: "x".repeat(101) });
+    expect(longDuration.status).toBe(400);
+    expect(longDuration.body.fields[0].field).toBe("duration");
+  });
+
   it("keeps a service with its own provider when the owner edits it", async () => {
     const mine = await createProvider(SELLER, { type: "service" });
     const rival = await createProvider("rival-seller", { type: "service" });

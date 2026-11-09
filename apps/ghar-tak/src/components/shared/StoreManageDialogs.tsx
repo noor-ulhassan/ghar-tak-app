@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorReason } from "@/lib/api-error";
 import {
   useUpdateMyProvider,
   useCreateProduct, useUpdateProduct,
@@ -55,7 +56,7 @@ export function EditShopDialog({
         toast({ title: "Shop updated" });
         onOpenChange(false);
       },
-      onError: () => toast({ title: "Failed to update shop", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update shop", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -138,13 +139,13 @@ export function ProductFormDialog({
   const createMutation = useCreateProduct({
     mutation: {
       onSuccess: () => { invalidate(); toast({ title: "Product added" }); onOpenChange(false); },
-      onError: () => toast({ title: "Failed to add product", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to add product", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
   const updateMutation = useUpdateProduct({
     mutation: {
       onSuccess: () => { invalidate(); toast({ title: "Product updated" }); onOpenChange(false); },
-      onError: () => toast({ title: "Failed to update product", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update product", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -157,14 +158,33 @@ export function ProductFormDialog({
       price: Number(form.price),
       stock: Number(form.stock) || 0,
       category: form.category.trim() || "General",
-      sku: form.sku.trim() || undefined,
-      imageUrl: form.imageUrl.trim() || undefined,
-      description: form.description.trim() || undefined,
+    };
+    const optional = {
+      sku: form.sku.trim(),
+      imageUrl: form.imageUrl.trim(),
+      description: form.description.trim(),
     };
     if (isAdd) {
-      createMutation.mutate({ providerId, data });
+      createMutation.mutate({
+        providerId,
+        data: {
+          ...data,
+          sku: optional.sku || undefined,
+          imageUrl: optional.imageUrl || undefined,
+          description: optional.description || undefined,
+        },
+      });
     } else if (product) {
-      updateMutation.mutate({ productId: product.id, data });
+      // An emptied field is sent as null so the server clears it (undefined would keep the old value).
+      updateMutation.mutate({
+        productId: product.id,
+        data: {
+          ...data,
+          sku: optional.sku || null,
+          imageUrl: optional.imageUrl || null,
+          description: optional.description || null,
+        },
+      });
     }
   };
 
@@ -236,13 +256,13 @@ export function ServiceFormDialog({
   const createMutation = useCreateService({
     mutation: {
       onSuccess: () => { invalidate(); toast({ title: "Service added" }); onOpenChange(false); },
-      onError: () => toast({ title: "Failed to add service", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to add service", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
   const updateMutation = useUpdateService({
     mutation: {
       onSuccess: () => { invalidate(); toast({ title: "Service updated" }); onOpenChange(false); },
-      onError: () => toast({ title: "Failed to update service", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update service", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -254,13 +274,20 @@ export function ServiceFormDialog({
       name: form.name.trim(),
       category: form.category.trim() || "General",
       priceRange: form.priceRange.trim(),
-      duration: form.duration.trim() || undefined,
-      description: form.description.trim() || undefined,
     };
+    const duration = form.duration.trim();
+    const description = form.description.trim();
     if (isAdd) {
-      createMutation.mutate({ providerId, data });
+      createMutation.mutate({
+        providerId,
+        data: { ...data, duration: duration || undefined, description: description || undefined },
+      });
     } else if (service) {
-      updateMutation.mutate({ serviceId: service.id, data });
+      // An emptied field is sent as null so the server clears it (undefined would keep the old value).
+      updateMutation.mutate({
+        serviceId: service.id,
+        data: { ...data, duration: duration || null, description: description || null },
+      });
     }
   };
 

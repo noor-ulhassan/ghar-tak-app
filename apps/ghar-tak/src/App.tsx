@@ -3,7 +3,7 @@ import { ClerkProvider, SignIn, SignUp, useClerk, useSession } from '@clerk/reac
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { Switch, Route, useLocation, useSearch, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { DataProvider } from "@/context/DataContext";
@@ -53,7 +53,19 @@ if (!clerkPubKey) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY');
 }
 
-const queryClient = new QueryClient();
+// A 4xx answer (not found, not allowed) won't change on a retry, so show it straight away
+// instead of retrying three times. Network and server errors keep the usual retries.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        if (typeof status === 'number' && status >= 400 && status < 500) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
 
 // Branded Clerk appearance matching the app's purple/green palette
 const clerkAppearance = {
@@ -107,6 +119,29 @@ const clerkAppearance = {
   },
 };
 
+// Signing in or up brings the customer back to the page they were on, not Home.
+const RETURN_PATH_KEY = 'ghar_tak_return_path';
+
+function ReturnPathRecorder() {
+  const [location] = useLocation();
+  const search = useSearch();
+  useEffect(() => {
+    if (location.startsWith('/sign-in') || location.startsWith('/sign-up')) return;
+    try {
+      sessionStorage.setItem(RETURN_PATH_KEY, location + (search ? `?${search}` : ''));
+    } catch { /* storage unavailable: fall back to Home */ }
+  }, [location, search]);
+  return null;
+}
+
+function returnUrl(): string {
+  let path = '/';
+  try {
+    path = sessionStorage.getItem(RETURN_PATH_KEY) || '/';
+  } catch { /* use Home */ }
+  return `${basePath}${path}`;
+}
+
 function SignInPageComponent() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-purple-50 via-white to-green-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-12">
@@ -115,7 +150,13 @@ function SignInPageComponent() {
           <h1 className="text-3xl font-bold text-purple-700 dark:text-purple-400 mb-1">Ghar Tak</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Your neighborhood marketplace</p>
         </div>
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        <SignIn
+          routing="path"
+          path={`${basePath}/sign-in`}
+          signUpUrl={`${basePath}/sign-up`}
+          fallbackRedirectUrl={returnUrl()}
+          signUpFallbackRedirectUrl={returnUrl()}
+        />
       </div>
     </div>
   );
@@ -129,7 +170,13 @@ function SignUpPageComponent() {
           <h1 className="text-3xl font-bold text-purple-700 dark:text-purple-400 mb-1">Join Ghar Tak</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Discover your neighborhood</p>
         </div>
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        <SignUp
+          routing="path"
+          path={`${basePath}/sign-up`}
+          signInUrl={`${basePath}/sign-in`}
+          fallbackRedirectUrl={returnUrl()}
+          signInFallbackRedirectUrl={returnUrl()}
+        />
       </div>
     </div>
   );
@@ -228,6 +275,7 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryCacheInvalidator />
         <ApiClientAuthSync />
+        <ReturnPathRecorder />
         <DataProvider>
           <CartProvider>
             <Layout>

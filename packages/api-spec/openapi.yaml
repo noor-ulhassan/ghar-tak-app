@@ -1139,6 +1139,7 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         type:
           type: string
           enum: [store, service, restaurant]
@@ -1146,16 +1147,22 @@ components:
           type: string
         address:
           type: string
+          maxLength: 500
         phone:
           type: string
+          maxLength: 50
         email:
           type: string
+          maxLength: 255
         category:
           type: string
+          maxLength: 100
         openingHours:
           type: string
+          maxLength: 100
         deliveryRadius:
           type: string
+          maxLength: 50
 
     UpdateProviderRequest:
       type: object
@@ -1163,26 +1170,33 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         address:
           type: string
+          maxLength: 500
         phone:
           type: string
+          maxLength: 50
         email:
           type: string
+          maxLength: 255
         isOpen:
           type: boolean
         openingHours:
           type: string
+          maxLength: 100
         deliveryRadius:
           type: string
+          maxLength: 50
         avatarUrl:
           type: string
         coverUrl:
           type: string
         category:
           type: string
+          maxLength: 100
 
     ProviderStats:
       type: object
@@ -1240,20 +1254,24 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         price:
           type: number
           minimum: 0
+          maximum: 99999999.99
         stock:
           type: integer
           minimum: 0
         sku:
           type: string
+          maxLength: 100
         imageUrl:
           type: string
         category:
           type: string
+          maxLength: 100
 
     UpdateProductRequest:
       type: object
@@ -1261,20 +1279,24 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: [string, "null"]
         price:
           type: number
           minimum: 0
+          maximum: 99999999.99
         stock:
           type: integer
           minimum: 0
         sku:
-          type: string
+          type: [string, "null"]
+          maxLength: 100
         imageUrl:
-          type: string
+          type: [string, "null"]
         category:
           type: string
+          maxLength: 100
         isAvailable:
           type: boolean
 
@@ -1309,15 +1331,19 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         priceRange:
           type: string
           minLength: 1
+          maxLength: 100
         duration:
           type: string
+          maxLength: 100
         category:
           type: string
+          maxLength: 100
 
     UpdateServiceRequest:
       type: object
@@ -1325,15 +1351,19 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: [string, "null"]
         priceRange:
           type: string
           minLength: 1
+          maxLength: 100
         duration:
-          type: string
+          type: [string, "null"]
+          maxLength: 100
         category:
           type: string
+          maxLength: 100
         isAvailable:
           type: boolean
 

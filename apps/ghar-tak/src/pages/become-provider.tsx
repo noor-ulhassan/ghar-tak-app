@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Briefcase, Store, CheckCircle, Loader2 } from "lucide-react";
 import { Link, useLocation } from 'wouter';
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorReason } from "@/lib/api-error";
 import { useCreateProvider } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useUser } from "@clerk/react";
@@ -51,7 +52,7 @@ export default function BecomeProviderPage() {
         onError: (err) => {
           toast({
             title: "Error",
-            description: "Failed to create provider account.",
+            description: apiErrorReason(err) ?? "Failed to create provider account.",
             variant: "destructive",
           });
         }

@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListMyOrders, useGetMe, useUpdateMe, useListMyBookings, useUpdateBookingStatus } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useFavorites } from "@/hooks/useFavorites";
 import {
   User,
   Edit3,
@@ -75,7 +76,7 @@ export default function ProfilePage() {
   const [savedItems, setSavedItems] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("posts");
 
-  const favorites: any[] = [];
+  const { favouriteIds } = useFavorites();
   const postsCount = gallery.length;
   const savedCount = savedItems.length;
   const orders = Array.isArray(ordersData) ? ordersData : [];
@@ -230,7 +231,7 @@ export default function ProfilePage() {
           <div className="text-sm text-muted-foreground">Orders</div>
         </div>
         <div className="text-center">
-          <div className="text-xl font-bold">{favorites.length}</div>
+          <div className="text-xl font-bold">{favouriteIds.size}</div>
           <div className="text-sm text-muted-foreground">Favorites</div>
         </div>
       </div>

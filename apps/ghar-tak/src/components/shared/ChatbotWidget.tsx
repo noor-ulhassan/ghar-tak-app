@@ -13,6 +13,8 @@ interface Message {
   id: string;
   text: string;
   sender: 'user' | 'bot';
+  /** The "trouble connecting" reply; not part of the conversation sent to the assistant. */
+  failed?: boolean;
 }
 
 export default function ChatbotWidget() {
@@ -29,13 +31,16 @@ export default function ChatbotWidget() {
     if (inputValue.trim() === '' || isBotReplying) return;
 
     const newUserMessage: Message = { id: Date.now().toString(), text: inputValue, sender: 'user' };
+    const history = messages
+      .filter((m) => !m.failed)
+      .map((m) => ({ role: m.sender === 'user' ? ('user' as const) : ('assistant' as const), content: m.text }));
     setMessages(prev => [...prev, newUserMessage]);
     const userMessage = inputValue;
     setInputValue('');
     setIsBotReplying(true);
 
     try {
-      const result = await getChatbotResponse({ message: userMessage });
+      const result = await getChatbotResponse({ message: userMessage, history });
       const botResponse: Message = { 
         id: (Date.now() + 1).toString(), 
         text: result.response, 
@@ -47,7 +52,8 @@ export default function ChatbotWidget() {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         text: "I'm sorry, but I'm having a little trouble connecting right now. Please try again in a moment.",
-        sender: 'bot'
+        sender: 'bot',
+        failed: true,
       };
       setMessages(prev => [...prev, errorResponse]);
       toast({

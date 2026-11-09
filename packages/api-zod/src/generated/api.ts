@@ -111,19 +111,32 @@ export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
 /**
  * @summary Register as a provider (business onboarding)
  */
+export const createProviderBodyNameMax = 255;
+
+export const createProviderBodyAddressMax = 500;
+
+export const createProviderBodyPhoneMax = 50;
+
+export const createProviderBodyEmailMax = 255;
+
+export const createProviderBodyCategoryMax = 100;
+
+export const createProviderBodyOpeningHoursMax = 100;
+
+export const createProviderBodyDeliveryRadiusMax = 50;
 
 
 
 export const CreateProviderBody = zod.object({
-  "name": zod.string().min(1),
+  "name": zod.string().min(1).max(createProviderBodyNameMax),
   "type": zod.enum(['store', 'service', 'restaurant']),
   "description": zod.string().optional(),
-  "address": zod.string().optional(),
-  "phone": zod.string().optional(),
-  "email": zod.string().optional(),
-  "category": zod.string().optional(),
-  "openingHours": zod.string().optional(),
-  "deliveryRadius": zod.string().optional()
+  "address": zod.string().max(createProviderBodyAddressMax).optional(),
+  "phone": zod.string().max(createProviderBodyPhoneMax).optional(),
+  "email": zod.string().max(createProviderBodyEmailMax).optional(),
+  "category": zod.string().max(createProviderBodyCategoryMax).optional(),
+  "openingHours": zod.string().max(createProviderBodyOpeningHoursMax).optional(),
+  "deliveryRadius": zod.string().max(createProviderBodyDeliveryRadiusMax).optional()
 })
 
 
@@ -159,21 +172,34 @@ export const GetMyProviderResponse = zod.object({
 /**
  * @summary Update the authenticated user's provider profile
  */
+export const updateMyProviderBodyNameMax = 255;
+
+export const updateMyProviderBodyAddressMax = 500;
+
+export const updateMyProviderBodyPhoneMax = 50;
+
+export const updateMyProviderBodyEmailMax = 255;
+
+export const updateMyProviderBodyOpeningHoursMax = 100;
+
+export const updateMyProviderBodyDeliveryRadiusMax = 50;
+
+export const updateMyProviderBodyCategoryMax = 100;
 
 
 
 export const UpdateMyProviderBody = zod.object({
-  "name": zod.string().min(1).optional(),
+  "name": zod.string().min(1).max(updateMyProviderBodyNameMax).optional(),
   "description": zod.string().optional(),
-  "address": zod.string().optional(),
-  "phone": zod.string().optional(),
-  "email": zod.string().optional(),
+  "address": zod.string().max(updateMyProviderBodyAddressMax).optional(),
+  "phone": zod.string().max(updateMyProviderBodyPhoneMax).optional(),
+  "email": zod.string().max(updateMyProviderBodyEmailMax).optional(),
   "isOpen": zod.boolean().optional(),
-  "openingHours": zod.string().optional(),
-  "deliveryRadius": zod.string().optional(),
+  "openingHours": zod.string().max(updateMyProviderBodyOpeningHoursMax).optional(),
+  "deliveryRadius": zod.string().max(updateMyProviderBodyDeliveryRadiusMax).optional(),
   "avatarUrl": zod.string().optional(),
   "coverUrl": zod.string().optional(),
-  "category": zod.string().optional()
+  "category": zod.string().max(updateMyProviderBodyCategoryMax).optional()
 })
 
 export const UpdateMyProviderResponse = zod.object({
@@ -269,21 +295,27 @@ export const CreateProductParams = zod.object({
   "providerId": zod.coerce.string()
 })
 
+export const createProductBodyNameMax = 255;
 
 export const createProductBodyPriceMin = 0;
+export const createProductBodyPriceMax = 99999999.99;
 
 export const createProductBodyStockMin = 0;
+
+export const createProductBodySkuMax = 100;
+
+export const createProductBodyCategoryMax = 100;
 
 
 
 export const CreateProductBody = zod.object({
-  "name": zod.string().min(1),
+  "name": zod.string().min(1).max(createProductBodyNameMax),
   "description": zod.string().optional(),
-  "price": zod.number().min(createProductBodyPriceMin),
+  "price": zod.number().min(createProductBodyPriceMin).max(createProductBodyPriceMax),
   "stock": zod.number().min(createProductBodyStockMin),
-  "sku": zod.string().optional(),
+  "sku": zod.string().max(createProductBodySkuMax).optional(),
   "imageUrl": zod.string().optional(),
-  "category": zod.string()
+  "category": zod.string().max(createProductBodyCategoryMax)
 })
 
 
@@ -294,21 +326,27 @@ export const UpdateProductParams = zod.object({
   "productId": zod.coerce.string()
 })
 
+export const updateProductBodyNameMax = 255;
 
 export const updateProductBodyPriceMin = 0;
+export const updateProductBodyPriceMax = 99999999.99;
 
 export const updateProductBodyStockMin = 0;
+
+export const updateProductBodySkuMax = 100;
+
+export const updateProductBodyCategoryMax = 100;
 
 
 
 export const UpdateProductBody = zod.object({
-  "name": zod.string().min(1).optional(),
+  "name": zod.string().min(1).max(updateProductBodyNameMax).optional(),
   "description": zod.string().nullish(),
-  "price": zod.number().min(updateProductBodyPriceMin).optional(),
+  "price": zod.number().min(updateProductBodyPriceMin).max(updateProductBodyPriceMax).optional(),
   "stock": zod.number().min(updateProductBodyStockMin).optional(),
-  "sku": zod.string().optional(),
-  "imageUrl": zod.string().optional(),
-  "category": zod.string().optional(),
+  "sku": zod.string().max(updateProductBodySkuMax).nullish(),
+  "imageUrl": zod.string().nullish(),
+  "category": zod.string().max(updateProductBodyCategoryMax).optional(),
   "isAvailable": zod.boolean().optional()
 })
 
@@ -363,16 +401,22 @@ export const CreateServiceParams = zod.object({
   "providerId": zod.coerce.string()
 })
 
+export const createServiceBodyNameMax = 255;
 
+export const createServiceBodyPriceRangeMax = 100;
+
+export const createServiceBodyDurationMax = 100;
+
+export const createServiceBodyCategoryMax = 100;
 
 
 
 export const CreateServiceBody = zod.object({
-  "name": zod.string().min(1),
+  "name": zod.string().min(1).max(createServiceBodyNameMax),
   "description": zod.string().optional(),
-  "priceRange": zod.string().min(1),
-  "duration": zod.string().optional(),
-  "category": zod.string()
+  "priceRange": zod.string().min(1).max(createServiceBodyPriceRangeMax),
+  "duration": zod.string().max(createServiceBodyDurationMax).optional(),
+  "category": zod.string().max(createServiceBodyCategoryMax)
 })
 
 
@@ -383,16 +427,22 @@ export const UpdateServiceParams = zod.object({
   "serviceId": zod.coerce.string()
 })
 
+export const updateServiceBodyNameMax = 255;
 
+export const updateServiceBodyPriceRangeMax = 100;
+
+export const updateServiceBodyDurationMax = 100;
+
+export const updateServiceBodyCategoryMax = 100;
 
 
 
 export const UpdateServiceBody = zod.object({
-  "name": zod.string().min(1).optional(),
+  "name": zod.string().min(1).max(updateServiceBodyNameMax).optional(),
   "description": zod.string().nullish(),
-  "priceRange": zod.string().min(1).optional(),
-  "duration": zod.string().optional(),
-  "category": zod.string().optional(),
+  "priceRange": zod.string().min(1).max(updateServiceBodyPriceRangeMax).optional(),
+  "duration": zod.string().max(updateServiceBodyDurationMax).nullish(),
+  "category": zod.string().max(updateServiceBodyCategoryMax).optional(),
   "isAvailable": zod.boolean().optional()
 })
 

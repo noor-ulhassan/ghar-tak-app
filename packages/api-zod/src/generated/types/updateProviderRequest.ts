@@ -7,16 +7,25 @@
  */
 
 export interface UpdateProviderRequest {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name?: string;
   description?: string;
+  /** @maxLength 500 */
   address?: string;
+  /** @maxLength 50 */
   phone?: string;
+  /** @maxLength 255 */
   email?: string;
   isOpen?: boolean;
+  /** @maxLength 100 */
   openingHours?: string;
+  /** @maxLength 50 */
   deliveryRadius?: string;
   avatarUrl?: string;
   coverUrl?: string;
+  /** @maxLength 100 */
   category?: string;
 }

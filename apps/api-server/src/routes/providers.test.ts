@@ -104,6 +104,23 @@ describe("providers", () => {
     });
   });
 
+  it("names the field when store details are too long", async () => {
+    const signup = await api()
+      .post("/api/providers")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ name: "Shop", type: "store", phone: "0".repeat(51) });
+    expect(signup.status).toBe(400);
+    expect(signup.body.fields[0].field).toBe("phone");
+
+    await createProvider(SELLER);
+    const hours = await api()
+      .patch("/api/providers/me")
+      .set(SIGNED_IN_AS, SELLER)
+      .send({ openingHours: "x".repeat(101) });
+    expect(hours.status).toBe(400);
+    expect(hours.body.fields[0].field).toBe("openingHours");
+  });
+
   it("rejects an empty store name", async () => {
     await createProvider(SELLER);
     const res = await api().patch("/api/providers/me").set(SIGNED_IN_AS, SELLER).send({ name: "" });

@@ -27,13 +27,11 @@ export default function ProductCard({ product, providerId, providerName, onSelec
   function handleAdd() {
     if (!providerId) return;
     const result = addItem(product, providerId, providerName ?? 'Store');
-    if (result === 'replaced') {
-      toast({
-        title: 'Cart updated',
-        description: `Your previous cart was replaced with items from ${providerName ?? 'this store'}.`,
-      });
+    if (result === 'none') {
+      toast({ title: 'Not enough stock', description: `${product.name} is out of stock.` });
+    } else if (result === 'added' || result === 'limit') {
+      openCart();
     }
-    openCart();
   }
 
   return (

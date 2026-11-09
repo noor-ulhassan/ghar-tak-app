@@ -25,12 +25,17 @@ async function displayNameOf(clerkUserId: string): Promise<string | null> {
   return displayName(await ensureUser(clerkUserId));
 }
 
+// Store replies are signed with the store's current name, never the owner's own name or email.
+function storeNameOf(conversation: Conversation, store: { name: string } | null): string {
+  return store?.name ?? conversation.providerName ?? "Store";
+}
+
 // Viewer must be a participant: the customer or the provider owner.
 async function loadParticipantConversation(
   conversationId: string,
   clerkUserId: string,
 ): Promise<
-  | { ok: true; conversation: Conversation; role: "user" | "provider" }
+  | { ok: true; conversation: Conversation; storeName: string; role: "user" | "provider" }
   | { ok: false; status: 404 | 403 }
 > {
   const [conversation] = await db
@@ -40,17 +45,18 @@ async function loadParticipantConversation(
     .limit(1);
   if (!conversation) return { ok: false, status: 404 };
 
-  if (conversation.userId === clerkUserId) {
-    return { ok: true, conversation, role: "user" };
-  }
-
   const [provider] = await db
-    .select({ userId: providersTable.userId })
+    .select({ userId: providersTable.userId, name: providersTable.name })
     .from(providersTable)
     .where(eq(providersTable.id, conversation.providerId))
     .limit(1);
+  const storeName = storeNameOf(conversation, provider ?? null);
+
+  if (conversation.userId === clerkUserId) {
+    return { ok: true, conversation, storeName, role: "user" };
+  }
   if (provider?.userId === clerkUserId) {
-    return { ok: true, conversation, role: "provider" };
+    return { ok: true, conversation, storeName, role: "provider" };
   }
 
   return { ok: false, status: 403 };
@@ -167,15 +173,22 @@ router.get("/conversations", requireAuth, async (req, res) => {
     }
 
     const rows = await db
-      .select()
+      .select({
+        c: conversations,
+        store: { name: providersTable.name, avatarUrl: providersTable.avatarUrl },
+      })
       .from(conversations)
+      .leftJoin(providersTable, eq(providersTable.id, conversations.providerId))
       .where(or(...conditions))
       .orderBy(desc(conversations.lastMessageAt))
       .limit(100);
 
+    // Name and logo come from the store as it is now, so a rename shows in old chats too.
     res.json(
-      rows.map((c) => ({
+      rows.map(({ c, store }) => ({
         ...c,
+        providerName: storeNameOf(c, store),
+        providerAvatar: store ? store.avatarUrl : c.providerAvatar,
         viewerRole: c.userId === clerkUserId ? ("user" as const) : ("provider" as const),
       })),
     );
@@ -202,7 +215,10 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       .orderBy(messages.createdAt)
       .limit(500);
 
-    res.json(thread);
+    // Replies saved before this rule may carry the owner's personal name; show the store's.
+    res.json(
+      thread.map((m) => (m.senderType === "provider" ? { ...m, senderName: result.storeName } : m)),
+    );
   } catch (err) {
     req.log.error({ err }, "GET /conversations/:id/messages error");
     res.status(500).json({ error: "Internal server error" });
@@ -225,9 +241,9 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     const { conversation, role } = result;
 
     const senderName =
-      (await displayNameOf(clerkUserId)) ??
-      (role === "user" ? conversation.userName : conversation.providerName) ??
-      (role === "user" ? "Customer" : "Provider");
+      role === "provider"
+        ? result.storeName
+        : ((await displayNameOf(clerkUserId)) ?? conversation.userName ?? "Customer");
 
     const [message] = await db
       .insert(messages)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
@@ -94,7 +94,12 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>(CreateOrderRequestPaymentMethod.cash_on_delivery);
   const [notes, setNotes] = useState('');
   const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; description?: string | null } | null>(null);
+  // `subtotal` is the cart total the discount was worked out for.
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; description?: string | null; subtotal: number } | null>(null);
+  const recheckingCoupon = useRef(false);
+  // The code the customer currently wants; an answer for any other code (for example,
+  // one they removed while it was being checked) is ignored.
+  const activeCouponCode = useRef<string | null>(null);
 
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -106,17 +111,43 @@ export default function CheckoutPage() {
 
   const validateCoupon = useValidateCoupon({
     mutation: {
-      onSuccess: (result) => {
+      onSuccess: (result, variables) => {
+        const recheck = recheckingCoupon.current;
+        recheckingCoupon.current = false;
+        if (variables.data.code !== activeCouponCode.current) return;
         if (result.valid && result.code && typeof result.discount === 'number') {
-          setAppliedCoupon({ code: result.code, discount: result.discount, description: result.description });
+          activeCouponCode.current = result.code;
+          setAppliedCoupon({
+            code: result.code,
+            discount: result.discount,
+            description: result.description,
+            subtotal: variables.data.subtotal,
+          });
           setCouponInput(result.code);
-          toast({ title: 'Coupon applied', description: result.description ?? `You saved PKR ${result.discount.toFixed(0)}` });
+          if (!recheck) {
+            toast({ title: 'Coupon applied', description: result.description ?? `You saved PKR ${result.discount.toFixed(0)}` });
+          }
         } else {
+          activeCouponCode.current = null;
           setAppliedCoupon(null);
-          toast({ title: 'Coupon not applied', description: result.reason ?? 'This code is not valid for your cart.', variant: 'destructive' });
+          toast({
+            title: recheck ? 'Coupon removed' : 'Coupon not applied',
+            description: result.reason ?? 'This code is not valid for your cart.',
+            variant: 'destructive',
+          });
         }
       },
-      onError: () => {
+      onError: (_error, variables) => {
+        const recheck = recheckingCoupon.current;
+        recheckingCoupon.current = false;
+        if (variables.data.code !== activeCouponCode.current) return;
+        if (recheck) {
+          // Drop the coupon rather than show a discount we couldn't confirm for the new cart.
+          activeCouponCode.current = null;
+          setAppliedCoupon(null);
+          toast({ title: 'Coupon removed', description: 'Your cart changed. Please apply the code again.', variant: 'destructive' });
+          return;
+        }
         toast({ title: 'Coupon check failed', description: 'Please try again in a moment.', variant: 'destructive' });
       },
     },
@@ -136,6 +167,18 @@ export default function CheckoutPage() {
       },
     },
   });
+
+  // The discount depends on the cart total, so check the coupon again whenever the cart changes.
+  useEffect(() => {
+    if (!appliedCoupon || appliedCoupon.subtotal === subtotal || validateCoupon.isPending) return;
+    if (subtotal <= 0) {
+      activeCouponCode.current = null;
+      setAppliedCoupon(null);
+      return;
+    }
+    recheckingCoupon.current = true;
+    validateCoupon.mutate({ data: { code: appliedCoupon.code, subtotal } });
+  }, [appliedCoupon, subtotal, validateCoupon.isPending]);
 
   useEffect(() => {
     if (selectedAddressId || addressList.length === 0) return;
@@ -230,10 +273,12 @@ export default function CheckoutPage() {
   function handleApplyCoupon() {
     const code = couponInput.trim();
     if (!code || subtotal <= 0) return;
+    activeCouponCode.current = code;
     validateCoupon.mutate({ data: { code, subtotal } });
   }
 
   function handleRemoveCoupon() {
+    activeCouponCode.current = null;
     setAppliedCoupon(null);
     setCouponInput('');
   }
