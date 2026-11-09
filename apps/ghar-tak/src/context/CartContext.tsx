@@ -20,8 +20,9 @@ export interface CartItem {
  * 'added'   — the items are in the cart.
  * 'confirm' — the cart holds another store's items; the customer is asked before it is replaced.
  * 'limit'   — the store doesn't have that many; the cart was filled up to the stock.
+ * 'none'    — nothing could be added: it's out of stock, or the cart already holds all of it.
  */
-export type AddResult = 'added' | 'confirm' | 'limit';
+export type AddResult = 'added' | 'confirm' | 'limit' | 'none';
 
 interface CartContextType {
   items: CartItem[];
@@ -84,6 +85,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => saveCart(cart), [cart]);
 
+  // Another tab changed the saved cart: take its version, so neither tab overwrites the other.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY || event.key === null) setCart(loadCart());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [setCart]);
+
   const openCart = useCallback(() => setIsOpen(true), []);
   const closeCart = useCallback(() => setIsOpen(false), []);
 
@@ -100,23 +110,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
             return { product: item.product, quantity };
           })
           .filter((item) => item.quantity > 0);
-        if (replacement.length === 0) return 'limit';
+        if (replacement.length === 0) return 'none';
         setPending({ items: replacement, providerId: newProviderId, providerName: newProviderName });
         return 'confirm';
       }
 
       const merged = current.items.map((item) => ({ ...item }));
+      let addedAny = false;
       for (const item of newItems) {
-        const existing = merged.find((i) => i.product.id === item.product.id);
-        const wanted = (existing?.quantity ?? 0) + item.quantity;
+        const index = merged.findIndex((i) => i.product.id === item.product.id);
+        const before = index >= 0 ? merged[index].quantity : 0;
+        const wanted = before + item.quantity;
         const allowed = withinStock(item.product, wanted);
         if (allowed < wanted) limited = true;
-        if (existing) existing.quantity = allowed;
-        else if (allowed > 0) merged.push({ product: item.product, quantity: allowed });
+        if (allowed > before) addedAny = true;
+        if (index >= 0) {
+          // Keep the newest product details so the drawer's "+" uses today's stock;
+          // a product that is now out of stock leaves the cart.
+          if (allowed > 0) merged[index] = { product: item.product, quantity: allowed };
+          else merged.splice(index, 1);
+        } else if (allowed > 0) {
+          merged.push({ product: item.product, quantity: allowed });
+        }
       }
-      if (merged.length === 0) return 'limit';
 
-      setCart({ items: merged, providerId: newProviderId, providerName: newProviderName });
+      setCart(merged.length > 0 ? { items: merged, providerId: newProviderId, providerName: newProviderName } : EMPTY_CART);
+      if (!addedAny) return 'none';
       return limited ? 'limit' : 'added';
     },
     [setCart]

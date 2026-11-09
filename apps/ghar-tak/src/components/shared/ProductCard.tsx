@@ -27,9 +27,9 @@ export default function ProductCard({ product, providerId, providerName, onSelec
   function handleAdd() {
     if (!providerId) return;
     const result = addItem(product, providerId, providerName ?? 'Store');
-    if (result === 'limit') {
+    if (result === 'none') {
       toast({ title: 'Not enough stock', description: `${product.name} is out of stock.` });
-    } else if (result === 'added') {
+    } else if (result === 'added' || result === 'limit') {
       openCart();
     }
   }

@@ -50,6 +50,9 @@ describe("bookings", () => {
     expect(past.status).toBe(400);
     expect(past.body.error).toMatch(/past/);
 
+    const ancient = await book("0999-06-01T09:00:00.000Z");
+    expect(ancient.status).toBe(400);
+
     const today = await book(new Date().toISOString());
     expect(today.status).toBe(201);
   });

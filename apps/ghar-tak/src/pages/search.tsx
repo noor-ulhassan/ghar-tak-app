@@ -86,7 +86,7 @@ export default function SearchPage() {
                 key={service.id}
                 href={
                   providerById.get(service.providerId)?.type === 'service'
-                    ? `/services/${service.category || 'all'}/${service.providerId}`
+                    ? `/services/${encodeURIComponent(service.category || 'all')}/${service.providerId}`
                     : `/stores/${service.providerId}`
                 }
               >

@@ -129,12 +129,14 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
     if (!store) return;
     const result = addItem(product, store.id, store.name);
     setDetailProduct(null);
-    if (result === 'limit') {
+    if (result === 'none') {
       toast({
         title: 'Not enough stock',
-        description: `All ${product.stock} of ${product.name} are already in your cart.`,
+        description: product.stock > 0
+          ? `All ${product.stock} of ${product.name} are already in your cart.`
+          : `${product.name} is out of stock.`,
       });
-    } else if (result === 'added') {
+    } else if (result === 'added' || result === 'limit') {
       openCart();
     }
   };

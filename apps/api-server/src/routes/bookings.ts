@@ -7,9 +7,18 @@ import { requireAuth } from "./auth";
 const router: IRouter = Router();
 
 // Customers and providers are in Pakistan, so "today" follows Pakistan's calendar,
-// not the server's. Returns YYYY-MM-DD, which compares correctly as text.
-function calendarDay(date: Date): string {
-  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+// not the server's. Returns the day as a number (YYYYMMDD) so every year compares correctly.
+const karachiDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Karachi",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function calendarDay(date: Date): number {
+  const parts = karachiDate.formatToParts(date);
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  return part("year") * 10000 + part("month") * 100 + part("day");
 }
 
 function mapBooking(b: any) {

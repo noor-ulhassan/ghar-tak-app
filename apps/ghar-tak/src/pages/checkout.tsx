@@ -97,6 +97,9 @@ export default function CheckoutPage() {
   // `subtotal` is the cart total the discount was worked out for.
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; description?: string | null; subtotal: number } | null>(null);
   const recheckingCoupon = useRef(false);
+  // The code the customer currently wants; an answer for any other code (for example,
+  // one they removed while it was being checked) is ignored.
+  const activeCouponCode = useRef<string | null>(null);
 
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -111,7 +114,9 @@ export default function CheckoutPage() {
       onSuccess: (result, variables) => {
         const recheck = recheckingCoupon.current;
         recheckingCoupon.current = false;
+        if (variables.data.code !== activeCouponCode.current) return;
         if (result.valid && result.code && typeof result.discount === 'number') {
+          activeCouponCode.current = result.code;
           setAppliedCoupon({
             code: result.code,
             discount: result.discount,
@@ -123,6 +128,7 @@ export default function CheckoutPage() {
             toast({ title: 'Coupon applied', description: result.description ?? `You saved PKR ${result.discount.toFixed(0)}` });
           }
         } else {
+          activeCouponCode.current = null;
           setAppliedCoupon(null);
           toast({
             title: recheck ? 'Coupon removed' : 'Coupon not applied',
@@ -131,10 +137,13 @@ export default function CheckoutPage() {
           });
         }
       },
-      onError: () => {
-        if (recheckingCoupon.current) {
+      onError: (_error, variables) => {
+        const recheck = recheckingCoupon.current;
+        recheckingCoupon.current = false;
+        if (variables.data.code !== activeCouponCode.current) return;
+        if (recheck) {
           // Drop the coupon rather than show a discount we couldn't confirm for the new cart.
-          recheckingCoupon.current = false;
+          activeCouponCode.current = null;
           setAppliedCoupon(null);
           toast({ title: 'Coupon removed', description: 'Your cart changed. Please apply the code again.', variant: 'destructive' });
           return;
@@ -163,6 +172,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!appliedCoupon || appliedCoupon.subtotal === subtotal || validateCoupon.isPending) return;
     if (subtotal <= 0) {
+      activeCouponCode.current = null;
       setAppliedCoupon(null);
       return;
     }
@@ -263,10 +273,12 @@ export default function CheckoutPage() {
   function handleApplyCoupon() {
     const code = couponInput.trim();
     if (!code || subtotal <= 0) return;
+    activeCouponCode.current = code;
     validateCoupon.mutate({ data: { code, subtotal } });
   }
 
   function handleRemoveCoupon() {
+    activeCouponCode.current = null;
     setAppliedCoupon(null);
     setCouponInput('');
   }

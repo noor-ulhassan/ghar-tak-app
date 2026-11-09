@@ -3,7 +3,7 @@ import { ClerkProvider, SignIn, SignUp, useClerk, useSession } from '@clerk/reac
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { Switch, Route, useLocation, useSearch, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { DataProvider } from "@/context/DataContext";
@@ -124,12 +124,13 @@ const RETURN_PATH_KEY = 'ghar_tak_return_path';
 
 function ReturnPathRecorder() {
   const [location] = useLocation();
+  const search = useSearch();
   useEffect(() => {
     if (location.startsWith('/sign-in') || location.startsWith('/sign-up')) return;
     try {
-      sessionStorage.setItem(RETURN_PATH_KEY, location + window.location.search);
+      sessionStorage.setItem(RETURN_PATH_KEY, location + (search ? `?${search}` : ''));
     } catch { /* storage unavailable: fall back to Home */ }
-  }, [location]);
+  }, [location, search]);
   return null;
 }
 

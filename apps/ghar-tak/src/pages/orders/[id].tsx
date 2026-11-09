@@ -81,7 +81,8 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
       // Follow the store's progress without a reload; stop once the order is finished.
       refetchInterval: (query) => {
         const status = query.state.data?.status;
-        return status === 'delivered' || status === 'cancelled' ? false : 15000;
+        if (!status || status === 'delivered' || status === 'cancelled') return false;
+        return 15000;
       },
     },
   });
@@ -157,6 +158,10 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
 
     const result = addItems(items, currentOrder.providerId, currentOrder.providerName);
     if (result === 'confirm') return; // the cart asks before replacing another store's items
+    if (result === 'none') {
+      toast({ title: 'Out of stock', description: 'None of these items are in stock right now.', variant: 'destructive' });
+      return;
+    }
 
     const notes = [
       unavailable > 0 ? `${unavailable} item${unavailable > 1 ? 's' : ''} no longer available were skipped.` : '',
