@@ -22,6 +22,8 @@ export interface Order {
 
 interface CartContextValue {
   items: CartItem[];
+  /** False until the saved cart has been read from storage. */
+  loaded: boolean;
   addItem: (product: Product, storeName?: string) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -37,6 +39,7 @@ const ORDERS_KEY = "ghar_tak_orders";
 
 const CartContext = createContext<CartContextValue>({
   items: [],
+  loaded: false,
   addItem: () => {},
   removeItem: () => {},
   updateQuantity: () => {},
@@ -50,6 +53,7 @@ const CartContext = createContext<CartContextValue>({
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -61,6 +65,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (cartJson) setItems(JSON.parse(cartJson));
         if (ordersJson) setOrders(JSON.parse(ordersJson));
       } catch {}
+      setLoaded(true);
     })();
   }, []);
 
@@ -135,6 +140,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<CartContextValue>(
     () => ({
       items,
+      loaded,
       addItem,
       removeItem,
       updateQuantity,
@@ -144,7 +150,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       orders,
       placeOrder,
     }),
-    [items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice, orders, placeOrder],
+    [items, loaded, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice, orders, placeOrder],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
