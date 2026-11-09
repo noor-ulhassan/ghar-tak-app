@@ -8,14 +8,23 @@
 import type { CreateProviderRequestType } from './createProviderRequestType';
 
 export interface CreateProviderRequest {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name: string;
   type: CreateProviderRequestType;
   description?: string;
+  /** @maxLength 500 */
   address?: string;
+  /** @maxLength 50 */
   phone?: string;
+  /** @maxLength 255 */
   email?: string;
+  /** @maxLength 100 */
   category?: string;
+  /** @maxLength 100 */
   openingHours?: string;
+  /** @maxLength 50 */
   deliveryRadius?: string;
 }

@@ -23,8 +23,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiErrorReason } from '@/lib/api-error';
 import { useUser } from '@clerk/react';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function StoreDetailPage({ params }: { params: { id: string } }) {
   const { user } = useUser();
@@ -36,6 +38,7 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
   const { favouriteIds, toggleFavourite } = useFavorites();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { addItem, openCart } = useCart();
 
   const isOwner = !!store && !!myProvider && myProvider.id === store.id;
@@ -63,16 +66,23 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
     },
   });
 
+  // Refresh the lists after a delete so the removed card disappears straight away.
   const deleteProduct = useDeleteProduct({
     mutation: {
-      onSuccess: () => toast({ title: "Product deleted" }),
-      onError: () => toast({ variant: "destructive", title: "Failed to delete product" }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListProviderProductsQueryKey(params.id) });
+        toast({ title: "Product deleted" });
+      },
+      onError: (err) => toast({ variant: "destructive", title: "Failed to delete product", description: apiErrorReason(err) }),
     },
   });
   const deleteService = useDeleteService({
     mutation: {
-      onSuccess: () => toast({ title: "Service deleted" }),
-      onError: () => toast({ variant: "destructive", title: "Failed to delete service" }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListProviderServicesQueryKey(params.id) });
+        toast({ title: "Service deleted" });
+      },
+      onError: (err) => toast({ variant: "destructive", title: "Failed to delete service", description: apiErrorReason(err) }),
     },
   });
 

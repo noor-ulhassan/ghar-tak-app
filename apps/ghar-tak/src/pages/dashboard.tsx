@@ -21,6 +21,7 @@ import {
 import { useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorReason } from "@/lib/api-error";
 import ConversationsList from "@/components/shared/ConversationsList";
 import {
   useGetMyProvider, useGetMyProviderStats, useUpdateMyProvider,
@@ -90,7 +91,7 @@ function ProductsTab({ providerId }: { providerId: string }) {
         setNew({ name: "", price: "", stock: "", description: "", category: "", sku: "" });
         setAddOpen(false);
       },
-      onError: () => toast({ title: "Failed to add product", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to add product", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -101,7 +102,7 @@ function ProductsTab({ providerId }: { providerId: string }) {
         toast({ title: "Product updated" });
         setEditing(null);
       },
-      onError: () => toast({ title: "Failed to update product", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update product", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -112,7 +113,7 @@ function ProductsTab({ providerId }: { providerId: string }) {
         qc.invalidateQueries({ queryKey: getGetMyProviderStatsQueryKey() });
         toast({ title: "Product deleted" });
       },
-      onError: () => toast({ title: "Failed to delete product", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to delete product", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -250,7 +251,7 @@ function ServicesTab({ providerId }: { providerId: string }) {
         setNew({ name: "", category: "", priceRange: "", description: "", duration: "" });
         setAddOpen(false);
       },
-      onError: () => toast({ title: "Failed to add service", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to add service", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -261,7 +262,7 @@ function ServicesTab({ providerId }: { providerId: string }) {
         toast({ title: "Service updated" });
         setEditing(null);
       },
-      onError: () => toast({ title: "Failed to update service", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update service", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -272,7 +273,7 @@ function ServicesTab({ providerId }: { providerId: string }) {
         qc.invalidateQueries({ queryKey: getGetMyProviderStatsQueryKey() });
         toast({ title: "Service deleted" });
       },
-      onError: () => toast({ title: "Failed to delete service", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to delete service", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -376,14 +377,17 @@ function ServicesTab({ providerId }: { providerId: string }) {
 function OrdersTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: orders = [], isLoading } = useListProviderOrders({ query: { queryKey: getListProviderOrdersQueryKey() } });
+  // New orders show up without a reload (polling pauses while the tab is in the background).
+  const { data: orders = [], isLoading } = useListProviderOrders({
+    query: { queryKey: getListProviderOrdersQueryKey(), refetchInterval: 15000 },
+  });
   const updateStatus = useUpdateOrderStatus({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListProviderOrdersQueryKey() });
         qc.invalidateQueries({ queryKey: getGetMyProviderStatsQueryKey() });
       },
-      onError: () => toast({ title: "Failed to update order", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update order", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -472,7 +476,7 @@ function BookingsTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: bookings = [], isLoading } = useListProviderBookings({
-    query: { queryKey: getListProviderBookingsQueryKey() },
+    query: { queryKey: getListProviderBookingsQueryKey(), refetchInterval: 15000 },
   });
   const updateStatus = useUpdateBookingStatus({
     mutation: {
@@ -480,7 +484,7 @@ function BookingsTab() {
         qc.invalidateQueries({ queryKey: getListProviderBookingsQueryKey() });
         toast({ title: "Booking updated" });
       },
-      onError: () => toast({ title: "Failed to update booking", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update booking", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -803,9 +807,17 @@ export default function ProviderDashboardPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: provider, isLoading: providerLoading } = useGetMyProvider({
+  const {
+    data: provider,
+    isLoading: providerLoading,
+    error: providerError,
+    refetch: refetchProvider,
+    isFetching: providerFetching,
+  } = useGetMyProvider({
     query: { enabled: !!user, queryKey: getGetMyProviderQueryKey(), retry: false },
   });
+  // Only a 404 means "no store yet"; any other failure is a load error the seller can retry.
+  const providerLoadFailed = !!providerError && (providerError as { status?: number }).status !== 404;
   const { data: stats, isLoading: statsLoading } = useGetMyProviderStats({
     query: { enabled: !!provider, queryKey: getGetMyProviderStatsQueryKey() },
   });
@@ -825,7 +837,7 @@ export default function ProviderDashboardPage() {
         toast({ title: "Business details updated" });
         setEditOpen(false);
       },
-      onError: () => toast({ title: "Failed to update details", variant: "destructive" }),
+      onError: (err) => toast({ title: "Failed to update details", description: apiErrorReason(err), variant: "destructive" }),
     },
   });
 
@@ -854,6 +866,20 @@ export default function ProviderDashboardPage() {
         <h1 className="text-2xl font-bold font-headline mb-2">Provider Dashboard</h1>
         <p className="text-muted-foreground mb-6">Sign in to manage your business.</p>
         <Button asChild><Link href="/sign-in">Sign In</Link></Button>
+      </div>
+    );
+  }
+
+  if (!provider && providerLoadFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-4">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold font-headline mb-2">Couldn't load your store</h1>
+        <p className="text-muted-foreground mb-6">Check your connection and try again.</p>
+        <Button onClick={() => refetchProvider()} disabled={providerFetching}>
+          {providerFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Try again
+        </Button>
       </div>
     );
   }

@@ -7,14 +7,22 @@
  */
 
 export interface CreateProductRequest {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name: string;
   description?: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999.99
+     */
   price: number;
   /** @minimum 0 */
   stock: number;
+  /** @maxLength 100 */
   sku?: string;
   imageUrl?: string;
+  /** @maxLength 100 */
   category: string;
 }

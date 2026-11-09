@@ -7,11 +7,19 @@
  */
 
 export interface CreateServiceRequest {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name: string;
   description?: string;
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   priceRange: string;
+  /** @maxLength 100 */
   duration?: string;
+  /** @maxLength 100 */
   category: string;
 }

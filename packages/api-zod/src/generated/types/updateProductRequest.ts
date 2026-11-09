@@ -7,16 +7,28 @@
  */
 
 export interface UpdateProductRequest {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
   name?: string;
   /** @nullable */
   description?: string | null;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999.99
+     */
   price?: number;
   /** @minimum 0 */
   stock?: number;
-  sku?: string;
-  imageUrl?: string;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  sku?: string | null;
+  /** @nullable */
+  imageUrl?: string | null;
+  /** @maxLength 100 */
   category?: string;
   isAvailable?: boolean;
 }
