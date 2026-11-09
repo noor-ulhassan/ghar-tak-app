@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,17 +23,21 @@ export default function CheckoutScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
-  const { items, totalPrice, placeOrder } = useCart();
+  const { items, loaded, totalPrice, placeOrder } = useCart();
 
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  // Placing an order empties the cart on purpose, so it must not trigger the redirect below.
+  const placingOrder = useRef(false);
 
-  if (items.length === 0) {
-    router.replace("/cart" as any);
-    return null;
-  }
+  // Nothing to check out: go back to the cart, but only once the saved cart has loaded.
+  useEffect(() => {
+    if (loaded && items.length === 0 && !placingOrder.current) {
+      router.replace("/cart" as any);
+    }
+  }, [loaded, items.length]);
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -141,11 +145,13 @@ export default function CheckoutScreen() {
     if (!phone.trim()) { Alert.alert("Missing info", "Please enter your phone number."); return; }
 
     setLoading(true);
+    placingOrder.current = true;
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const order = await placeOrder(name.trim(), address.trim(), phone.trim());
       router.replace({ pathname: "/order-success", params: { orderId: order.id } } as any);
     } catch {
+      placingOrder.current = false;
       Alert.alert("Error", "Could not place your order. Please try again.");
     } finally {
       setLoading(false);
@@ -153,6 +159,9 @@ export default function CheckoutScreen() {
   };
 
   const grandTotal = totalPrice + 2;
+
+  // Every hook above runs on every render; only now is it safe to show nothing.
+  if (items.length === 0) return null;
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>

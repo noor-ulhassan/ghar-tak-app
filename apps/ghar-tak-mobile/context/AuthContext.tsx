@@ -5,6 +5,7 @@ import {
   signOut as firebaseSignOut,
   type User as FirebaseUser,
 } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { auth, hasFirebaseConfig } from "@/lib/firebase";
@@ -42,21 +43,21 @@ function createGuestUser(): GuestUser {
   };
 }
 
-function loadGuestUser(): GuestUser | null {
+// AsyncStorage keeps the guest session on Android and iOS too; localStorage only exists in browsers.
+// On web it stores under the same key, so guests already signed in there stay signed in.
+async function loadGuestUser(): Promise<GuestUser | null> {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(GUEST_USER_KEY) : null;
+    const raw = await AsyncStorage.getItem(GUEST_USER_KEY);
     if (raw) return JSON.parse(raw) as GuestUser;
   } catch { /* ignore */ }
   return null;
 }
 
 function saveGuestUser(user: GuestUser | null) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      if (user) localStorage.setItem(GUEST_USER_KEY, JSON.stringify(user));
-      else localStorage.removeItem(GUEST_USER_KEY);
-    }
-  } catch { /* ignore */ }
+  const saved = user
+    ? AsyncStorage.setItem(GUEST_USER_KEY, JSON.stringify(user))
+    : AsyncStorage.removeItem(GUEST_USER_KEY);
+  saved.catch(() => { /* the session still works until the app closes */ });
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -75,21 +76,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const guest = loadGuestUser();
-    if (guest) {
-      setUser(guest);
-      setLoading(false);
-      return;
-    }
-    if (!hasFirebaseConfig || !auth) {
-      setLoading(false);
-      return;
-    }
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    (async () => {
+      const guest = await loadGuestUser();
+      if (cancelled) return;
+      if (guest) {
+        setUser(guest);
+        setLoading(false);
+        return;
+      }
+      if (!hasFirebaseConfig || !auth) {
+        setLoading(false);
+        return;
+      }
+      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        setUser(firebaseUser);
+        setLoading(false);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
