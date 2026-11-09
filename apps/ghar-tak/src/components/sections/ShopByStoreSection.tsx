@@ -27,7 +27,7 @@ function StoreProducts({ storeId, storeName }: { storeId: string; storeName: str
       <div className="flex w-max space-x-4 p-4">
         {products.map((product) => (
           <div key={product.id} className="w-64 whitespace-normal">
-            <ProductCard product={product} />
+            <ProductCard product={product} providerId={storeId} providerName={storeName} />
           </div>
         ))}
       </div>

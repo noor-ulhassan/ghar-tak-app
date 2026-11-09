@@ -1,10 +1,27 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import type { Product } from '@workspace/api-client-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+/**
+ * 'added'   — the items are in the cart.
+ * 'confirm' — the cart holds another store's items; the customer is asked before it is replaced.
+ * 'limit'   — the store doesn't have that many; the cart was filled up to the stock.
+ */
+export type AddResult = 'added' | 'confirm' | 'limit';
 
 interface CartContextType {
   items: CartItem[];
@@ -13,8 +30,8 @@ interface CartContextType {
   isOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
-  addItem: (product: Product, providerId: string, providerName: string) => 'added' | 'replaced';
-  addItems: (items: CartItem[], providerId: string, providerName: string) => 'added' | 'replaced';
+  addItem: (product: Product, providerId: string, providerName: string) => AddResult;
+  addItems: (items: CartItem[], providerId: string, providerName: string) => AddResult;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -22,106 +39,130 @@ interface CartContextType {
   totalPrice: number;
 }
 
+type Cart = { items: CartItem[]; providerId: string | null; providerName: string | null };
+
+const EMPTY_CART: Cart = { items: [], providerId: null, providerName: null };
+const STORAGE_KEY = 'ghar_tak_cart';
+
+// The cart is kept in the browser so a page refresh doesn't empty it.
+function loadCart(): Cart {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as Cart;
+      if (Array.isArray(saved.items) && saved.items.length > 0 && saved.providerId) return saved;
+    }
+  } catch { /* ignore */ }
+  return EMPTY_CART;
+}
+
+function saveCart(cart: Cart) {
+  try {
+    if (cart.items.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+function withinStock(product: Product, quantity: number) {
+  return Math.min(quantity, Math.max(product.stock, 0));
+}
+
 const CartContext = createContext<CartContextType | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [providerId, setProviderId] = useState<string | null>(null);
-  const [providerName, setProviderName] = useState<string | null>(null);
+  const [cart, setCartState] = useState<Cart>(loadCart);
   const [isOpen, setIsOpen] = useState(false);
+  // Another store's items waiting for the customer to agree to replace the cart.
+  const [pending, setPending] = useState<Cart | null>(null);
+
+  // Two quick clicks must both count, so changes build on the latest cart, not the last render.
+  const cartRef = useRef(cart);
+  const setCart = useCallback((next: Cart) => {
+    cartRef.current = next;
+    setCartState(next);
+  }, []);
+
+  useEffect(() => saveCart(cart), [cart]);
 
   const openCart = useCallback(() => setIsOpen(true), []);
   const closeCart = useCallback(() => setIsOpen(false), []);
 
-  const addItem = useCallback(
-    (product: Product, newProviderId: string, newProviderName: string): 'added' | 'replaced' => {
-      let result: 'added' | 'replaced' = 'added';
-
-      setItems((prev) => {
-        // Different provider — replace the whole cart
-        if (providerId && providerId !== newProviderId) {
-          result = 'replaced';
-          setProviderId(newProviderId);
-          setProviderName(newProviderName);
-          return [{ product, quantity: 1 }];
-        }
-
-        // Same provider (or empty cart)
-        setProviderId(newProviderId);
-        setProviderName(newProviderName);
-        const existing = prev.find((i) => i.product.id === product.id);
-        if (existing) {
-          return prev.map((i) =>
-            i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-          );
-        }
-        return [...prev, { product, quantity: 1 }];
-      });
-
-      return result;
-    },
-    [providerId]
-  );
-
   const addItems = useCallback(
-    (newItems: CartItem[], newProviderId: string, newProviderName: string): 'added' | 'replaced' => {
-      const replacing = items.length > 0 && providerId !== null && providerId !== newProviderId;
+    (newItems: CartItem[], newProviderId: string, newProviderName: string): AddResult => {
+      const current = cartRef.current;
+      let limited = false;
 
-      setItems((prev) => {
-        const base = replacing ? [] : prev;
-        const merged = base.map((item) => ({ ...item }));
-        for (const newItem of newItems) {
-          const existing = merged.find((item) => item.product.id === newItem.product.id);
-          if (existing) {
-            existing.quantity += newItem.quantity;
-          } else {
-            merged.push({ ...newItem });
-          }
-        }
-        return merged;
-      });
-      setProviderId(newProviderId);
-      setProviderName(newProviderName);
+      if (current.items.length > 0 && current.providerId !== newProviderId) {
+        const replacement = newItems
+          .map((item) => {
+            const quantity = withinStock(item.product, item.quantity);
+            if (quantity < item.quantity) limited = true;
+            return { product: item.product, quantity };
+          })
+          .filter((item) => item.quantity > 0);
+        if (replacement.length === 0) return 'limit';
+        setPending({ items: replacement, providerId: newProviderId, providerName: newProviderName });
+        return 'confirm';
+      }
 
-      return replacing ? 'replaced' : 'added';
+      const merged = current.items.map((item) => ({ ...item }));
+      for (const item of newItems) {
+        const existing = merged.find((i) => i.product.id === item.product.id);
+        const wanted = (existing?.quantity ?? 0) + item.quantity;
+        const allowed = withinStock(item.product, wanted);
+        if (allowed < wanted) limited = true;
+        if (existing) existing.quantity = allowed;
+        else if (allowed > 0) merged.push({ product: item.product, quantity: allowed });
+      }
+      if (merged.length === 0) return 'limit';
+
+      setCart({ items: merged, providerId: newProviderId, providerName: newProviderName });
+      return limited ? 'limit' : 'added';
     },
-    [items, providerId]
+    [setCart]
   );
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => {
-      const next = prev.filter((i) => i.product.id !== productId);
-      if (next.length === 0) {
-        setProviderId(null);
-        setProviderName(null);
-      }
-      return next;
-    });
-  }, []);
+  const addItem = useCallback(
+    (product: Product, newProviderId: string, newProviderName: string): AddResult =>
+      addItems([{ product, quantity: 1 }], newProviderId, newProviderName),
+    [addItems]
+  );
 
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems((prev) => {
-        const next = prev.filter((i) => i.product.id !== productId);
-        if (next.length === 0) {
-          setProviderId(null);
-          setProviderName(null);
-        }
-        return next;
-      });
-    } else {
-      setItems((prev) =>
-        prev.map((i) => (i.product.id === productId ? { ...i, quantity } : i))
-      );
+  const confirmReplace = useCallback(() => {
+    if (pending) {
+      setCart(pending);
+      setIsOpen(true);
     }
-  }, []);
+    setPending(null);
+  }, [pending, setCart]);
 
-  const clearCart = useCallback(() => {
-    setItems([]);
-    setProviderId(null);
-    setProviderName(null);
-  }, []);
+  const removeItem = useCallback(
+    (productId: string) => {
+      const items = cartRef.current.items.filter((i) => i.product.id !== productId);
+      setCart(items.length > 0 ? { ...cartRef.current, items } : EMPTY_CART);
+    },
+    [setCart]
+  );
 
+  const updateQuantity = useCallback(
+    (productId: string, quantity: number) => {
+      if (quantity <= 0) {
+        removeItem(productId);
+        return;
+      }
+      setCart({
+        ...cartRef.current,
+        items: cartRef.current.items.map((i) =>
+          i.product.id === productId ? { ...i, quantity: withinStock(i.product, quantity) } : i
+        ),
+      });
+    },
+    [removeItem, setCart]
+  );
+
+  const clearCart = useCallback(() => setCart(EMPTY_CART), [setCart]);
+
+  const { items, providerId, providerName } = cart;
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
 
@@ -144,6 +185,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <AlertDialog open={!!pending} onOpenChange={(open) => { if (!open) setPending(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start a new cart?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your cart has items from {providerName ?? 'another store'}. An order can only come from one
+              store, so adding from {pending?.providerName ?? 'this store'} will remove them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep my cart</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReplace}>Start new cart</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </CartContext.Provider>
   );
 }

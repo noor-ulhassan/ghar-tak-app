@@ -143,11 +143,14 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
     }
 
     const result = addItems(items, currentOrder.providerId, currentOrder.providerName);
+    if (result === 'confirm') return; // the cart asks before replacing another store's items
+
+    const notes = [
+      unavailable > 0 ? `${unavailable} item${unavailable > 1 ? 's' : ''} no longer available were skipped.` : '',
+      result === 'limit' ? 'Some quantities were lowered to what the store has in stock.' : '',
+    ].filter(Boolean);
     openCart();
-    toast({
-      title: result === 'replaced' ? 'Cart replaced' : 'Items added to cart',
-      description: unavailable > 0 ? `${unavailable} item${unavailable > 1 ? 's' : ''} no longer available were skipped.` : undefined,
-    });
+    toast({ title: 'Items added to cart', description: notes.join(' ') || undefined });
   }
 
   if (!user) {

@@ -1,5 +1,10 @@
 import { useSearch as useSearchString, Link } from 'wouter';
-import { useSearch as useSearchQuery, getSearchQueryKey } from '@workspace/api-client-react';
+import {
+  useSearch as useSearchQuery,
+  getSearchQueryKey,
+  useListProviders,
+  getListProvidersQueryKey,
+} from '@workspace/api-client-react';
 import ProductCard from '@/components/shared/ProductCard';
 import StoreCard from '@/components/shared/StoreCard';
 import ServiceCard from '@/components/shared/ServiceCard';
@@ -20,6 +25,13 @@ export default function SearchPage() {
   const providers = results?.providers ?? [];
   const products = results?.products ?? [];
   const services = results?.services ?? [];
+
+  // Product and service results only carry a provider ID; look up the provider's name and type.
+  const { data: allProviders } = useListProviders(
+    {},
+    { query: { queryKey: getListProvidersQueryKey({}), enabled: !!query } },
+  );
+  const providerById = new Map((Array.isArray(allProviders) ? allProviders : []).map((p) => [p.id, p]));
 
   const stores = providers.filter((p) => p.type !== 'service');
   const serviceProviders = providers.filter((p) => p.type === 'service');
@@ -70,7 +82,14 @@ export default function SearchPage() {
           <h2 className="text-2xl font-semibold font-headline mb-4">Services</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((service) => (
-              <Link key={service.id} href={`/stores/${service.providerId}`}>
+              <Link
+                key={service.id}
+                href={
+                  providerById.get(service.providerId)?.type === 'service'
+                    ? `/services/${service.category || 'all'}/${service.providerId}`
+                    : `/stores/${service.providerId}`
+                }
+              >
                 <Card className="hover:shadow-lg transition-all cursor-pointer h-full">
                   <CardContent className="p-4 flex items-start gap-3">
                     <div className="p-2 bg-primary/10 rounded-lg shrink-0">
@@ -96,7 +115,14 @@ export default function SearchPage() {
         <section>
           <h2 className="text-2xl font-semibold font-headline mb-4">Products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => <ProductCard key={product.id} product={product} />)}
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                providerId={product.providerId}
+                providerName={providerById.get(product.providerId)?.name}
+              />
+            ))}
           </div>
         </section>
       )}

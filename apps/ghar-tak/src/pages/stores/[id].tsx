@@ -128,14 +128,15 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
   const addDetailToCart = (product: Product) => {
     if (!store) return;
     const result = addItem(product, store.id, store.name);
-    if (result === 'replaced') {
-      toast({
-        title: 'Cart updated',
-        description: `Your previous cart was replaced with items from ${store.name}.`,
-      });
-    }
     setDetailProduct(null);
-    openCart();
+    if (result === 'limit') {
+      toast({
+        title: 'Not enough stock',
+        description: `All ${product.stock} of ${product.name} are already in your cart.`,
+      });
+    } else if (result === 'added') {
+      openCart();
+    }
   };
 
   if (storeLoading) {

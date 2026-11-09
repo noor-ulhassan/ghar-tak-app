@@ -71,6 +71,7 @@ export default function CartDrawer() {
                         size="icon"
                         className="h-6 w-6"
                         onClick={() => updateQuantity(product.id, quantity + 1)}
+                        disabled={quantity >= product.stock}
                         aria-label="Increase quantity"
                       >
                         <Plus className="h-3 w-3" />
