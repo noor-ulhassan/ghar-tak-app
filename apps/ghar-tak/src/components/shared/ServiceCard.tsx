@@ -5,21 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Star, CalendarClock, Heart, Navigation, BadgeCheck } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
+import { useFavorites } from '@/hooks/useFavorites';
 
 interface ServiceCardProps {
   serviceProvider: Provider;
-  onToggleFavorite?: (serviceProviderId: string) => void;
-  isFavorite?: boolean;
   distanceKm?: number | null;
 }
 
-export default function ServiceCard({ serviceProvider, onToggleFavorite, isFavorite, distanceKm }: ServiceCardProps) {
-  const handleFavoriteClick = () => {
-    if (onToggleFavorite) {
-      onToggleFavorite(serviceProvider.id);
-    }
-  };
-  
+export default function ServiceCard({ serviceProvider, distanceKm }: ServiceCardProps) {
+  const { favouriteIds, toggleFavourite } = useFavorites();
+  const isFavorite = favouriteIds.has(serviceProvider.id);
+
   return (
     <Card className="w-full overflow-hidden transition-all hover:shadow-lg flex flex-col">
       <CardHeader className="p-0">
@@ -41,12 +37,16 @@ export default function ServiceCard({ serviceProvider, onToggleFavorite, isFavor
               {serviceProvider.isVerified && <BadgeCheck className="h-4 w-4 text-primary flex-shrink-0" aria-label="Verified provider" />}
             </CardTitle>
           </Link>
-          {onToggleFavorite && (
-            <Button variant="ghost" size="icon" onClick={handleFavoriteClick} className="text-muted-foreground hover:text-destructive flex-shrink-0">
-              <Heart className={`h-5 w-5 ${isFavorite ? 'fill-destructive text-destructive' : ''}`} />
-              <span className="sr-only">Favorite</span>
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => toggleFavourite(serviceProvider.id)}
+            className="text-muted-foreground hover:text-destructive flex-shrink-0"
+            aria-label={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+          >
+            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-destructive text-destructive' : ''}`} />
+            <span className="sr-only">Favorite</span>
+          </Button>
         </div>
         <CardDescription className="text-sm text-muted-foreground mb-1 line-clamp-2 h-10">
           {serviceProvider.description || `Professional services.`}

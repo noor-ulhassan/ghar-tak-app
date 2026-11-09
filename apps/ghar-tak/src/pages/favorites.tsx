@@ -80,7 +80,7 @@ export default function FavoritesPage() {
             <h2 className="text-2xl font-semibold font-headline mb-6">Favorite Services</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {favoriteServices.map((service) => (
-                <ServiceCard key={service.id} serviceProvider={service} isFavorite={true} />
+                <ServiceCard key={service.id} serviceProvider={service} />
               ))}
             </div>
           </div>

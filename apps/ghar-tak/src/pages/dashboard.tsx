@@ -190,9 +190,12 @@ function ProductsTab({ providerId }: { providerId: string }) {
               <div className="flex items-center justify-between mt-3">
                 <span className="font-bold text-lg">PKR {product.price.toLocaleString()}</span>
                 <div className="flex gap-1">
-                  <Dialog>
+                  <Dialog
+                    open={editing?.id === product.id}
+                    onOpenChange={(open) => setEditing(open ? { ...product } : null)}
+                  >
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={() => setEditing({ ...product })}>Edit</Button>
+                      <Button variant="outline" size="sm">Edit</Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
@@ -332,9 +335,12 @@ function ServicesTab({ providerId }: { providerId: string }) {
                 <Badge variant="outline" className="mt-2">{service.priceRange}</Badge>
               </div>
               <div className="flex gap-1">
-                <Dialog>
+                <Dialog
+                  open={editing?.id === service.id}
+                  onOpenChange={(open) => setEditing(open ? { ...service } : null)}
+                >
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => setEditing({ ...service })}>Edit</Button>
+                    <Button variant="outline" size="sm">Edit</Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-md">
                     <DialogHeader><DialogTitle>Edit Service</DialogTitle></DialogHeader>
@@ -515,7 +521,10 @@ function BookingsTab() {
                     {new Date(booking.bookingDate).toLocaleDateString()}
                     <span className="text-xs text-muted-foreground block">{booking.timeSlot}</span>
                   </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm">{booking.address}</TableCell>
+                  <TableCell className="max-w-[220px] text-sm">
+                    <p className="truncate">{booking.address}</p>
+                    {booking.notes && <p className="text-xs text-muted-foreground italic">Note: {booking.notes}</p>}
+                  </TableCell>
                   <TableCell>
                     <Badge className={statusBadge(booking.status)}>{booking.status}</Badge>
                   </TableCell>
