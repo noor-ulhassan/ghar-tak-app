@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable, ordersTable, reviewsTable } from "@workspace/db";
-import { eq, and, ilike, or, count, avg } from "drizzle-orm";
+import { eq, and, ilike, or, count, avg, inArray, sql } from "drizzle-orm";
 import { CreateProviderBody, UpdateMyProviderBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
+import { categoryMatchTerms } from "./categories";
 
 const router: IRouter = Router();
 
@@ -37,12 +38,16 @@ function mapProvider(p: any, isFavorite = false) {
 // GET /api/providers
 router.get("/providers", async (req: Request, res: Response) => {
   try {
-    const { category, type, q } = req.query as Record<string, string>;
+    const { type, q } = req.query as Record<string, string>;
     let query = db.select().from(providersTable);
 
     const conditions = [];
     if (type) conditions.push(eq(providersTable.type, type));
-    if (category) conditions.push(eq(providersTable.category, category));
+    // A repeated ?category= arrives as an array; match any of the values.
+    const categories = [req.query.category].flat().filter((c): c is string => typeof c === "string" && c.trim() !== "");
+    if (categories.length > 0) {
+      conditions.push(inArray(sql`lower(trim(${providersTable.category}))`, categories.flatMap(categoryMatchTerms)));
+    }
     if (q) {
       conditions.push(
         or(

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorReason } from "@/lib/api-error";
+import CategorySelect from "@/components/shared/CategorySelect";
 import {
   useUpdateMyProvider,
   useCreateProduct, useUpdateProduct,
@@ -68,7 +69,7 @@ export function EditShopDialog({
         <DialogHeader><DialogTitle>Edit Shop Details</DialogTitle></DialogHeader>
         <div className="space-y-3 py-4">
           <div><Label>Name</Label><Input value={form.name ?? ""} onChange={(e) => set({ name: e.target.value })} /></div>
-          <div><Label>Category</Label><Input value={form.category ?? ""} onChange={(e) => set({ category: e.target.value })} placeholder="Groceries, Pharmacy…" /></div>
+          <div><Label>Category</Label><CategorySelect providerType={shop.type} value={form.category ?? ""} onChange={(category) => set({ category })} /></div>
           <div><Label>Description</Label><Textarea value={form.description ?? ""} onChange={(e) => set({ description: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Phone</Label><Input value={form.phone ?? ""} onChange={(e) => set({ phone: e.target.value })} /></div>

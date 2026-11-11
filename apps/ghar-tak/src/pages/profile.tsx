@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@clerk/react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
+
+const PROFILE_TABS = ["posts", "saved", "orders", "settings"];
 import { useQueryClient } from "@tanstack/react-query";
 import { useListMyOrders, useGetMe, useUpdateMe, useListMyBookings, useUpdateBookingStatus } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -63,7 +65,6 @@ export default function ProfilePage() {
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -74,7 +75,11 @@ export default function ProfilePage() {
 
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [savedItems, setSavedItems] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState("posts");
+  // Other pages can open a tab directly, e.g. /profile?tab=orders from Support.
+  const requestedTab = new URLSearchParams(useSearch()).get("tab");
+  const [activeTab, setActiveTab] = useState(
+    requestedTab && PROFILE_TABS.includes(requestedTab) ? requestedTab : "posts",
+  );
 
   const { favouriteIds } = useFavorites();
   const postsCount = gallery.length;
@@ -155,12 +160,6 @@ export default function ProfilePage() {
       {/* Cover Photo */}
       <div className="relative rounded-xl overflow-hidden h-48 md:h-64 bg-muted group">
         <img src="https://placehold.co/1200x400.png?text=Cover+Photo" alt="Cover" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Button variant="secondary" size="sm" onClick={() => coverInputRef.current?.click()}>
-            <Camera className="h-4 w-4 mr-2" /> Change Cover
-          </Button>
-        </div>
-        <input ref={coverInputRef} type="file" accept="image/*" className="hidden" />
       </div>
 
       {/* Profile Header */}

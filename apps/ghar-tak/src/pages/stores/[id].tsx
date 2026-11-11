@@ -25,7 +25,7 @@ import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorReason } from '@/lib/api-error';
 import { useUser } from '@clerk/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function StoreDetailPage({ params }: { params: { id: string } }) {
@@ -42,6 +42,15 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
   const { addItem, openCart } = useCart();
 
   const isOwner = !!store && !!myProvider && myProvider.id === store.id;
+
+  // The lists can load before sign-in finishes, which gives the customer view
+  // (switched-off items left out). Once this turns out to be the owner's own
+  // store, reload them so the owner sees everything they can manage.
+  useEffect(() => {
+    if (!isOwner) return;
+    queryClient.invalidateQueries({ queryKey: getListProviderProductsQueryKey(params.id) });
+    queryClient.invalidateQueries({ queryKey: getListProviderServicesQueryKey(params.id) });
+  }, [isOwner, params.id, queryClient]);
 
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [messageDraft, setMessageDraft] = useState("");

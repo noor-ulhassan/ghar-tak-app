@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable } from "@workspace/db";
-import { ilike, or } from "drizzle-orm";
+import { and, eq, ilike, or } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -39,11 +39,15 @@ router.get("/search", async (req: Request, res: Response) => {
         .select()
         .from(productsTable)
         .where(
-          or(
-            ilike(productsTable.name, term),
-            ilike(productsTable.description, term),
-            ilike(productsTable.category, term),
-          )!,
+          // Search is for shoppers: leave out what the store has switched off.
+          and(
+            eq(productsTable.isAvailable, true),
+            or(
+              ilike(productsTable.name, term),
+              ilike(productsTable.description, term),
+              ilike(productsTable.category, term),
+            ),
+          ),
         )
         .limit(10);
     }
@@ -53,11 +57,14 @@ router.get("/search", async (req: Request, res: Response) => {
         .select()
         .from(servicesTable)
         .where(
-          or(
-            ilike(servicesTable.name, term),
-            ilike(servicesTable.description, term),
-            ilike(servicesTable.category, term),
-          )!,
+          and(
+            eq(servicesTable.isAvailable, true),
+            or(
+              ilike(servicesTable.name, term),
+              ilike(servicesTable.description, term),
+              ilike(servicesTable.category, term),
+            ),
+          ),
         )
         .limit(10);
     }

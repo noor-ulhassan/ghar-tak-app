@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { CreateProductBody, UpdateProductBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
+import { viewerOwnsProvider } from "../lib/ownership";
 import { requireAuth } from "./auth";
 
 const router: IRouter = Router();
@@ -35,6 +36,8 @@ router.get("/providers/:providerId/products", async (req: Request, res: Response
   try {
     const conditions = [eq(productsTable.providerId, providerId)];
     if (category) conditions.push(eq(productsTable.category, category));
+    // Customers only see what they can order; the owner sees everything to manage it.
+    if (!(await viewerOwnsProvider(req, providerId))) conditions.push(eq(productsTable.isAvailable, true));
     const rows = await db.select().from(productsTable).where(and(...conditions));
     res.json(rows.map(mapProduct));
   } catch (err) {

@@ -1,41 +1,14 @@
-import { useState } from 'react';
+import { Link } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { HelpCircle, PackageSearch, RefreshCw, Send, Truck } from "lucide-react";
+import { HelpCircle, PackageSearch, RefreshCw, Truck } from "lucide-react";
 
 export default function SupportPage() {
-  const [trackingId, setTrackingId] = useState('');
-  const [trackingResult, setTrackingResult] = useState<string | null>(null);
-  const [isLoadingTracking, setIsLoadingTracking] = useState(false);
-
-  const handleTrackOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!trackingId.trim()) {
-      setTrackingResult("Please enter a valid tracking ID.");
-      return;
-    }
-    setIsLoadingTracking(true);
-    setTrackingResult(null);
-    // Simulate API call
-    setTimeout(() => {
-      // Mock responses based on tracking ID for demonstration
-      if (trackingId.toLowerCase() === "ghar123") {
-        setTrackingResult(`Order ${trackingId}: Shipped. Expected delivery: 2-3 business days.`);
-      } else if (trackingId.toLowerCase() === "tak456") {
-        setTrackingResult(`Order ${trackingId}: Out for delivery. Arriving today.`);
-      } else {
-        setTrackingResult(`Order ${trackingId}: No information found. Please check the ID or contact support.`);
-      }
-      setIsLoadingTracking(false);
-    }, 1500);
-  };
-
   const supportFAQs = [
     {
       question: "How do I track my order?",
-      answer: "You can track your order using the 'Track Your Order' section on this page. Enter your tracking ID provided in your order confirmation email.",
+      answer: "Go to My Orders in your profile and open the order. Its status updates as the store prepares and delivers it.",
     },
     {
       question: "What is your return policy?",
@@ -74,40 +47,18 @@ export default function SupportPage() {
               <PackageSearch className="h-6 w-6 mr-3 text-primary" />
               Track Your Order
             </CardTitle>
-            <CardDescription>Enter your tracking ID to see the status of your shipment.</CardDescription>
+            <CardDescription>Your orders and their live status are in your profile.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleTrackOrder} className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Input
-                  type="text"
-                  placeholder="Enter Tracking ID (e.g., GHAR123)"
-                  value={trackingId}
-                  onChange={(e) => setTrackingId(e.target.value)}
-                  className="flex-grow text-base h-11"
-                  aria-label="Tracking ID"
-                />
-                <Button type="submit" className="w-full sm:w-auto h-11" disabled={isLoadingTracking}>
-                  {isLoadingTracking ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 h-4 w-4" />
-                  )}
-                  Track Order
-                </Button>
-              </div>
-            </form>
-            {trackingResult && (
-              <div className="mt-6 p-4 bg-muted/50 rounded-md border">
-                <p className="text-foreground">{trackingResult}</p>
-              </div>
-            )}
-             {isLoadingTracking && !trackingResult && (
-              <div className="mt-6 p-4 bg-muted/50 rounded-md border flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Fetching tracking details...</p>
-              </div>
-            )}
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Open any order to see each step as the store updates it, from confirmed to delivered.
+            </p>
+            <Button asChild className="h-11">
+              <Link href="/profile?tab=orders">
+                <PackageSearch className="mr-2 h-4 w-4" />
+                View My Orders
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </section>
@@ -155,7 +106,7 @@ export default function SupportPage() {
             <h3 className="font-semibold text-foreground">Shipping Costs:</h3>
             <p>Delivery fees vary based on distance, order size, and urgency. The applicable fee will be clearly displayed at checkout. Some promotions may offer free delivery.</p>
             <h3 className="font-semibold text-foreground">Order Tracking:</h3>
-            <p>Once your order is dispatched or a service is confirmed, you will receive a tracking ID (if applicable) which you can use on our 'Track Your Order' section on this page or through the link in your confirmation email/SMS.</p>
+            <p>You can follow every order from My Orders in your profile. Its status changes as the store confirms, prepares and delivers it. Your service bookings show there too, from the moment you request them.</p>
              <p className="text-sm"><em>Please note that delivery times are estimates and can be affected by traffic, weather, or other unforeseen circumstances.</em></p>
           </CardContent>
         </Card>
@@ -188,21 +139,3 @@ export default function SupportPage() {
     </div>
   );
 }
-
-// Loader icon for button
-const Loader2 = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);

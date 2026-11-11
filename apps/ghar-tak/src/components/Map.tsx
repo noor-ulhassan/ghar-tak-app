@@ -34,7 +34,13 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
-const Map = () => {
+type MapsWindow = Window & { gm_authFailure?: () => void };
+
+// Google reports a rejected key only once per page load, so a setup failure is
+// remembered here; coming back to the home page must not show the map again.
+let mapSetupFailed = false;
+
+const NearbyMap = () => {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -44,6 +50,16 @@ const Map = () => {
   const [mapError, setMapError] = useState<string | null>(null);
   const [isLoadingMap, setIsLoadingMap] = useState(true);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  // Set when Google Maps can't work because of how it's set up (key, billing,
+  // APIs). Visitors can't fix that, so the map is hidden instead of showing them
+  // setup instructions.
+  const [unavailable, setUnavailable] = useState(false);
+
+  const hideMap = (reason: string) => {
+    console.error(`Map hidden: ${reason}`);
+    mapSetupFailed = true;
+    setUnavailable(true);
+  };
 
   const initializeMap = () => {
     if (!mapRef.current) {
@@ -55,6 +71,7 @@ const Map = () => {
       console.error('Google Maps API or Map constructor is not available after polling.');
       setMapError('Google Maps components failed to load. Please check your connection or API key setup.');
       setIsLoadingMap(false);
+      hideMap('Google Maps loaded without its Map constructor');
       return;
     }
     
@@ -101,6 +118,7 @@ const Map = () => {
       }
       setMapError(friendlyMessage);
       setIsLoadingMap(false);
+      hideMap(friendlyMessage);
     }
   };
   
@@ -137,6 +155,12 @@ const Map = () => {
   };
 
   useEffect(() => {
+    // Google calls this when it rejects the key (wrong key, blocked domain, no
+    // billing). Without it, Google draws its own error box inside the map.
+    const mapsWindow = window as MapsWindow;
+    const onAuthFailure = () => hideMap('Google Maps rejected the API key');
+    mapsWindow.gm_authFailure = onAuthFailure;
+
     setIsLoadingMap(true);
     loadGoogleMapsScript()
       .then(() => {
@@ -144,13 +168,14 @@ const Map = () => {
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('VITE_GOOGLE_MAPS_API_KEY')) {
-          setMapError('Google Maps is not configured. Set the VITE_GOOGLE_MAPS_API_KEY environment variable to enable the map.');
-        } else {
-          setMapError('Google Maps failed to load. Please check your API key and internet connection.');
-        }
+        setMapError('Google Maps failed to load.');
         setIsLoadingMap(false);
+        hideMap(msg);
       });
+
+    return () => {
+      if (mapsWindow.gm_authFailure === onAuthFailure) delete mapsWindow.gm_authFailure;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -172,7 +197,8 @@ const Map = () => {
     if (!(window.google && window.google.maps && window.google.maps.places && typeof window.google.maps.places.PlacesService === 'function')) {
       console.warn('Google Maps PlacesService component is not available. This might be due to the Places API not being enabled or a script loading issue.');
       setMapError('Places search functionality is unavailable. Please ensure the "Places API" is enabled in your Google Cloud Console and your API key is configured correctly.');
-      return; 
+      hideMap('Places library is missing; the Places API may not be enabled');
+      return;
     }
     // Clear previous places-specific error if map itself is okay and PlacesService is now available
     if (mapError && mapError.startsWith('Places search functionality is unavailable')) {
@@ -221,15 +247,18 @@ const Map = () => {
         } else if (status === window.google.maps.places.PlacesServiceStatus.REQUEST_DENIED) {
           console.warn('PlacesService search request denied. Status: ' + status);
           setMapError('Places search request was denied. This can happen if the "Places API" is not enabled for your project, your API key is invalid for Places API, or due to billing issues. Please check your Google Cloud Console settings.');
+          hideMap('Places search was denied; check the Places API and billing');
         } else {
           console.warn('PlacesService search was not successful for the following reason: ' + status);
-          setMapError(`Could not perform place search (Status: ${status}). Please try again or check API configuration.`);
+          setMapError("Couldn't search for places right now. Please try again.");
         }
       }
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, userLocation, selectedCategory, map]); // mapError was removed from deps to avoid re-triggering search on error set
   
+  if (unavailable) return null;
+
   const controlsDisabled = !!mapError || isLoadingMap;
 
   return (
@@ -303,5 +332,8 @@ const Map = () => {
     </Card>
   );
 };
+
+/** Without a Google Maps key the map has nothing to show, so the home page leaves it out. */
+const Map = () => (GOOGLE_MAPS_API_KEY && !mapSetupFailed ? <NearbyMap /> : null);
 
 export default Map;

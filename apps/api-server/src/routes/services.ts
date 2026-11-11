@@ -1,7 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, servicesTable, providersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { CreateServiceBody, UpdateServiceBody } from "@workspace/api-zod";
+import { viewerOwnsProvider } from "../lib/ownership";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 
@@ -25,7 +26,16 @@ function mapService(s: any) {
 router.get("/providers/:providerId/services", async (req: Request, res: Response) => {
   const { providerId } = req.params as Record<string, string>;
   try {
-    const rows = await db.select().from(servicesTable).where(eq(servicesTable.providerId, providerId));
+    // Customers only see what they can book; the owner sees everything to manage it.
+    const ownerView = await viewerOwnsProvider(req, providerId);
+    const rows = await db
+      .select()
+      .from(servicesTable)
+      .where(
+        ownerView
+          ? eq(servicesTable.providerId, providerId)
+          : and(eq(servicesTable.providerId, providerId), eq(servicesTable.isAvailable, true)),
+      );
     res.json(rows.map(mapService));
   } catch (err) {
     req.log.error({ err }, "GET /providers/:id/services error");
