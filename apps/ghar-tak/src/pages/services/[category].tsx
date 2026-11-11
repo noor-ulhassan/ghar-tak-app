@@ -1,5 +1,6 @@
 import { useListCategories, useListProviders } from '@workspace/api-client-react';
 import ServiceCard from '@/components/shared/ServiceCard';
+import StoreCard from '@/components/shared/StoreCard';
 import { Link } from 'wouter';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SearchInput from '@/components/shared/SearchInput';
@@ -11,9 +12,12 @@ import { providerDistance, sortByDistance } from '@/lib/geo';
 export default function ServiceCategoryPage({ params }: { params: { category: string } }) {
   const { data: categories, isLoading: categoriesLoading } = useListCategories({ query: { queryKey: ["listCategories"] } });
   const categoriesList = Array.isArray(categories) ? categories : [];
-  const category = categoriesList.find(c => c.id === params.category);
+  // Older links use the category's name ("Plumber") instead of its id ("plumber").
+  const wanted = params.category.toLowerCase();
+  const category = categoriesList.find(c => c.id === wanted || c.name.toLowerCase() === wanted);
 
-  const { data: providers, isLoading: providersLoading } = useListProviders({ type: 'service', category: params.category }, { query: { enabled: !!params.category, queryKey: ["listProviders", { type: 'service', category: params.category }] } });
+  // Every kind of provider: product categories like Groceries are made up of stores.
+  const { data: providers, isLoading: providersLoading } = useListProviders({ category: params.category }, { query: { enabled: !!params.category, queryKey: ["listProviders", { category: params.category }] } });
 
   const { location, hasRealLocation } = useLocation();
   const origin = hasRealLocation ? location : null;
@@ -63,7 +67,9 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedProviders.map((provider) => (
-            <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={providerDistance(origin, provider)} />
+            provider.type === 'service'
+              ? <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={providerDistance(origin, provider)} />
+              : <StoreCard key={provider.id} store={provider} distanceKm={providerDistance(origin, provider)} />
           ))}
         </div>
       )}

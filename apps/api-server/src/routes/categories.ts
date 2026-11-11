@@ -19,6 +19,25 @@ const CATEGORIES = [
   { id: "clothing", name: "Clothing", icon: "Shirt", type: "product", description: "Apparel & fashion" },
 ];
 
+// Spellings stores already use for a category, found in existing data.
+const ALIASES: Record<string, string[]> = {
+  groceries: ["grocery"],
+  clothing: ["fashion"],
+  mechanic: ["car_repair"],
+};
+
+/**
+ * Lower-case category values that belong on a category page. Stores typed their
+ * category as free text, so "groceries" also matches "Groceries" and "Grocery".
+ * A value that isn't an official category only matches itself.
+ */
+export function categoryMatchTerms(category: string): string[] {
+  const wanted = category.trim().toLowerCase();
+  const official = CATEGORIES.find((c) => c.id === wanted || c.name.toLowerCase() === wanted);
+  if (!official) return [wanted];
+  return [official.id, official.name.toLowerCase(), ...(ALIASES[official.id] ?? [])];
+}
+
 // GET /api/categories
 router.get("/categories", (_req, res: Response) => {
   res.json(CATEGORIES);

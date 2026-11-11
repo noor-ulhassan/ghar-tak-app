@@ -182,3 +182,43 @@ describe("products and services", () => {
     expect(blocked.status).toBe(401);
   });
 });
+
+describe("items switched off by the seller", () => {
+  beforeEach(resetDatabase);
+
+  it("hides them from customers but keeps them for the store's owner", async () => {
+    const store = await createProvider(SELLER);
+    await createProduct(store.id, { name: "Milk" });
+    await createProduct(store.id, { name: "Yogurt", isAvailable: false });
+    await createService(store.id, { name: "Home delivery setup" });
+    await createService(store.id, { name: "Gift wrapping", isAvailable: false });
+    const names = (res: { body: { name: string }[] }) => res.body.map((item) => item.name).sort();
+
+    for (const visitor of [undefined, "customer-1"]) {
+      const asVisitor = (path: string) => {
+        const req = api().get(path);
+        return visitor ? req.set(SIGNED_IN_AS, visitor) : req;
+      };
+      expect(names(await asVisitor(`/api/providers/${store.id}/products`))).toEqual(["Milk"]);
+      expect(names(await asVisitor(`/api/providers/${store.id}/services`))).toEqual(["Home delivery setup"]);
+    }
+
+    const ownerProducts = await api().get(`/api/providers/${store.id}/products`).set(SIGNED_IN_AS, SELLER);
+    expect(names(ownerProducts)).toEqual(["Milk", "Yogurt"]);
+    const ownerServices = await api().get(`/api/providers/${store.id}/services`).set(SIGNED_IN_AS, SELLER);
+    expect(names(ownerServices)).toEqual(["Gift wrapping", "Home delivery setup"]);
+  });
+
+  it("leaves them out of search", async () => {
+    const store = await createProvider(SELLER);
+    await createProduct(store.id, { name: "Fresh Milk" });
+    await createProduct(store.id, { name: "Milk Powder", isAvailable: false });
+    await createService(store.id, { name: "Milk delivery" });
+    await createService(store.id, { name: "Milk tasting", isAvailable: false });
+
+    const found = await api().get("/api/search").query({ q: "milk" });
+    expect(found.status).toBe(200);
+    expect(found.body.products.map((p: { name: string }) => p.name)).toEqual(["Fresh Milk"]);
+    expect(found.body.services.map((s: { name: string }) => s.name)).toEqual(["Milk delivery"]);
+  });
+});

@@ -7,6 +7,7 @@ import { Briefcase, Store, CheckCircle, Loader2 } from "lucide-react";
 import { Link, useLocation } from 'wouter';
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorReason } from "@/lib/api-error";
+import CategorySelect from "@/components/shared/CategorySelect";
 import { useCreateProvider } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useUser } from "@clerk/react";
@@ -97,7 +98,11 @@ export default function BecomeProviderPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="businessType">Type of Business</Label>
-                  <select id="businessType" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})}>
+                  <select id="businessType" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required value={formData.type} onChange={(e) => {
+                    // Stores and restaurants share one category list; only a switch to or from Service Provider changes it.
+                    const sameList = (e.target.value === "service") === (formData.type === "service");
+                    setFormData({...formData, type: e.target.value, category: sameList ? formData.category : ""});
+                  }}>
                     <option value="store">Store</option>
                     <option value="service">Service Provider</option>
                     <option value="restaurant">Restaurant</option>
@@ -105,7 +110,7 @@ export default function BecomeProviderPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
-                  <Input id="category" placeholder="e.g., Groceries, Plumbing, Fast Food" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} />
+                  <CategorySelect id="category" providerType={formData.type} value={formData.category} onChange={(category) => setFormData({...formData, category})} />
                 </div>
               </div>
               <div className="space-y-2">

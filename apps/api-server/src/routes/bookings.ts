@@ -91,6 +91,11 @@ router.post("/bookings", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    if (!service.isAvailable) {
+      res.status(409).json({ error: `${service.name} isn't available right now.` });
+      return;
+    }
+
     const customer = await ensureUser(clerkUserId);
     const [booking] = await db
       .insert(bookingsTable)

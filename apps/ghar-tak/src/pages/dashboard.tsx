@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Briefcase, Building, BadgeCheck, Camera, CalendarClock, Edit3, Eye, ImagePlus, ListChecks,
+  Briefcase, Building, BadgeCheck, CalendarClock, Edit3, Eye, ListChecks,
   Loader2, MessageSquare, Package, PlusCircle, ShoppingBag, ShoppingCart,
   Star, Trash2, TrendingUp, Users, DollarSign, ArrowUpRight, BarChart3,
   AlertCircle,
@@ -614,47 +614,6 @@ function ReviewsTab({ providerId }: { providerId: string }) {
   );
 }
 
-function GalleryTab() {
-  const [gallery, setGallery] = useState<{ id: string; url: string; caption: string }[]>([]);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      const url = URL.createObjectURL(file);
-      setGallery((g) => [...g, { id: `g-${Date.now()}-${Math.random()}`, url, caption: "" }]);
-    });
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold font-headline">Store Gallery</h3>
-        <Button size="sm" onClick={() => galleryInputRef.current?.click()}>
-          <ImagePlus className="h-4 w-4 mr-2" /> Upload Images
-        </Button>
-        <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {gallery.map((image) => (
-          <div key={image.id} className="relative group aspect-video rounded-lg overflow-hidden border">
-            <img src={image.url} alt="gallery" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Button variant="ghost" size="icon" className="text-white hover:text-white" onClick={() => setGallery((g) => g.filter((x) => x.id !== image.id))}>
-                <Trash2 className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        ))}
-        {gallery.length === 0 && (
-          <p className="text-muted-foreground col-span-full text-center py-12">No photos yet. Upload images of your store or services!</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function AnalyticsTab({ stats, products }: { stats: any; products: any[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -843,7 +802,6 @@ export default function ProviderDashboardPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── loading / auth gates ────────────────────────────────────────────────────
 
@@ -919,12 +877,6 @@ export default function ProviderDashboardPage() {
         {provider.coverUrl
           ? <img src={provider.coverUrl} alt="Store Banner" className="w-full h-full object-cover" />
           : <div className="w-full h-full bg-gradient-to-r from-primary/20 to-primary/5 flex items-center justify-center"><Briefcase className="h-16 w-16 text-primary/20" /></div>}
-        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Camera className="h-4 w-4 mr-2" /> Change Banner
-          </Button>
-        </div>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" />
       </div>
 
       {/* Business Header */}
@@ -1056,13 +1008,12 @@ export default function ProviderDashboardPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="listings">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="listings"><ListChecks className="h-4 w-4 mr-2" /> Listings</TabsTrigger>
           <TabsTrigger value="orders"><ShoppingBag className="h-4 w-4 mr-2" /> Orders</TabsTrigger>
           <TabsTrigger value="bookings"><CalendarClock className="h-4 w-4 mr-2" /> Bookings</TabsTrigger>
           <TabsTrigger value="messages"><MessageSquare className="h-4 w-4 mr-2" /> Messages</TabsTrigger>
           <TabsTrigger value="reviews"><Star className="h-4 w-4 mr-2" /> Reviews</TabsTrigger>
-          <TabsTrigger value="gallery"><ImagePlus className="h-4 w-4 mr-2" /> Gallery</TabsTrigger>
           <TabsTrigger value="analytics"><BarChart3 className="h-4 w-4 mr-2" /> Analytics</TabsTrigger>
         </TabsList>
 
@@ -1081,7 +1032,6 @@ export default function ProviderDashboardPage() {
         <TabsContent value="bookings" className="mt-6"><BookingsTab /></TabsContent>
         <TabsContent value="messages" className="mt-6"><MessagesTab /></TabsContent>
         <TabsContent value="reviews" className="mt-6"><ReviewsTab providerId={providerId} /></TabsContent>
-        <TabsContent value="gallery" className="mt-6"><GalleryTab /></TabsContent>
         <TabsContent value="analytics" className="mt-6"><AnalyticsTab stats={stats} products={products} /></TabsContent>
       </Tabs>
     </div>

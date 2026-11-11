@@ -147,3 +147,48 @@ describe("providers", () => {
     expect(res.body).toMatchObject({ totalRevenue: 500, totalOrders: 2, pendingOrders: 1 });
   });
 });
+
+describe("category pages", () => {
+  beforeEach(resetDatabase);
+
+  const namesFor = async (category: string) =>
+    (await api().get("/api/providers").query({ category })).body.map((p: { name: string }) => p.name).sort();
+
+  it("lists every kind of provider in a category, whatever way the category was written", async () => {
+    await createProvider("a", { name: "Al-Baraka", type: "store", category: "Grocery" });
+    await createProvider("b", { name: "Fresh Mart", type: "store", category: "Groceries" });
+    await createProvider("c", { name: "Daily Needs", type: "store", category: "groceries" });
+    await createProvider("d", { name: "Khaddi", type: "store", category: "Fashion" });
+    await createProvider("e", { name: "Ustad Raza", type: "service", category: "plumber" });
+    await createProvider("f", { name: "Pipe Pros", type: "service", category: "Plumber" });
+    await createProvider("g", { name: "Bundu Khan", type: "restaurant", category: "Restaurant" });
+
+    expect(await namesFor("groceries")).toEqual(["Al-Baraka", "Daily Needs", "Fresh Mart"]);
+    expect(await namesFor("clothing")).toEqual(["Khaddi"]);
+    expect(await namesFor("plumber")).toEqual(["Pipe Pros", "Ustad Raza"]);
+    expect(await namesFor("Plumber")).toEqual(["Pipe Pros", "Ustad Raza"]);
+    expect(await namesFor("restaurant")).toEqual(["Bundu Khan"]);
+    expect(await namesFor("pharmacy")).toEqual([]);
+  });
+
+  it("matches a category that isn't on the official list only to itself", async () => {
+    await createProvider("a", { name: "Noor Beauty", type: "service", category: "hairdresser" });
+    await createProvider("b", { name: "Ustad Raza", type: "service", category: "plumber" });
+
+    expect(await namesFor("hairdresser")).toEqual(["Noor Beauty"]);
+  });
+});
+
+describe("category filter input", () => {
+  beforeEach(resetDatabase);
+
+  it("answers a repeated category with the providers of each one", async () => {
+    await createProvider("a", { name: "Al-Baraka", type: "store", category: "Grocery" });
+    await createProvider("b", { name: "Khaddi", type: "store", category: "Fashion" });
+    await createProvider("c", { name: "Ustad Raza", type: "service", category: "plumber" });
+
+    const res = await api().get("/api/providers?category=groceries&category=clothing");
+    expect(res.status).toBe(200);
+    expect(res.body.map((p: { name: string }) => p.name).sort()).toEqual(["Al-Baraka", "Khaddi"]);
+  });
+});
