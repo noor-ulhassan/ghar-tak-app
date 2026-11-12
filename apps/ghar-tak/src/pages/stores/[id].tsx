@@ -6,6 +6,7 @@ import {
   type Product, type Service,
 } from '@workspace/api-client-react';
 import ProductCard from '@/components/shared/ProductCard';
+import DeliveryReach from '@/components/shared/DeliveryReach';
 import { EditShopDialog, ProductFormDialog, ServiceFormDialog } from '@/components/shared/StoreManageDialogs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -241,6 +242,7 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
                 <MapPin className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
                 <span>{store.address || 'Location not specified'}</span>
               </div>
+              <DeliveryReach provider={store} className="md:justify-end" />
               {store.phone && (
                 <div className="flex items-center md:justify-end">
                   <Phone className="h-4 w-4 mr-2 text-primary flex-shrink-0" />

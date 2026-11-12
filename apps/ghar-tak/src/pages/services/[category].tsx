@@ -1,12 +1,13 @@
-import { useListCategories, useListProviders } from '@workspace/api-client-react';
+import { useListCategories, useListProviders, getListProvidersQueryKey } from '@workspace/api-client-react';
 import ServiceCard from '@/components/shared/ServiceCard';
 import StoreCard from '@/components/shared/StoreCard';
+import { NearbyScopeSwitch, NoneNearby } from '@/components/shared/NearbyScope';
 import { Link } from 'wouter';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SearchInput from '@/components/shared/SearchInput';
 import * as Icons from 'lucide-react';
 import { useMemo } from 'react';
-import { useLocation } from '@/hooks/useLocation';
+import { useNearbyScope } from '@/hooks/useNearby';
 import { providerDistance, sortByDistance } from '@workspace/geo';
 
 export default function ServiceCategoryPage({ params }: { params: { category: string } }) {
@@ -17,14 +18,15 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
   const category = categoriesList.find(c => c.id === wanted || c.name.toLowerCase() === wanted);
 
   // Every kind of provider: product categories like Groceries are made up of stores.
-  const { data: providers, isLoading: providersLoading } = useListProviders({ category: params.category }, { query: { enabled: !!params.category, queryKey: ["listProviders", { category: params.category }] } });
+  // With a location the server sends only those that reach it, nearest first.
+  const { point, filterPoint, showAll } = useNearbyScope();
+  const listParams = { category: params.category, ...filterPoint };
+  const { data: providers, isLoading: providersLoading } = useListProviders(listParams, { query: { enabled: !!params.category, queryKey: getListProvidersQueryKey(listParams) } });
 
-  const { location, hasRealLocation } = useLocation();
-  const origin = hasRealLocation ? location : null;
-  const sortedProviders = useMemo(
-    () => sortByDistance(Array.isArray(providers) ? providers : [], origin),
-    [providers, origin]
-  );
+  const sortedProviders = useMemo(() => {
+    const list = Array.isArray(providers) ? providers : [];
+    return filterPoint ? list : sortByDistance(list, point);
+  }, [providers, filterPoint, point]);
 
   if (categoriesLoading || providersLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>;
@@ -56,21 +58,31 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
             <Icon className="h-8 w-8 text-primary mr-3" />
             <h1 className="text-3xl font-bold font-headline">{category.name}</h1>
           </div>
+          {point && <NearbyScopeSwitch path={`/services/${params.category}`} showAll={showAll} />}
         </div>
         <div className="w-full md:w-1/2 lg:w-1/3">
             <SearchInput placeholder={`Search in ${category.name}...`} />
         </div>
       </div>
-      
+
       {sortedProviders.length === 0 ? (
-        <p className="text-muted-foreground text-center py-10">No {category.name.toLowerCase()} available in your area currently.</p>
+        filterPoint ? (
+          <NoneNearby
+            message={`No ${category.name.toLowerCase()} reach your location yet.`}
+            allHref={`/services/${params.category}?view=all`}
+            allLabel={`See all ${category.name.toLowerCase()}`}
+          />
+        ) : (
+          <p className="text-muted-foreground text-center py-10">No {category.name.toLowerCase()} available currently.</p>
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedProviders.map((provider) => (
-            provider.type === 'service'
-              ? <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={providerDistance(origin, provider)} />
-              : <StoreCard key={provider.id} store={provider} distanceKm={providerDistance(origin, provider)} />
-          ))}
+          {sortedProviders.map((provider) => {
+            const distanceKm = provider.distanceKm ?? providerDistance(point, provider);
+            return provider.type === 'service'
+              ? <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={distanceKm} />
+              : <StoreCard key={provider.id} store={provider} distanceKm={distanceKm} />;
+          })}
         </div>
       )}
     </div>

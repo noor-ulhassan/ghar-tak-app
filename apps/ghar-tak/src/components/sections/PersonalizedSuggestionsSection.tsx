@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUser } from '@clerk/react';
-import { useListMyOrders, useListProviders, useListProviderProducts } from '@workspace/api-client-react';
+import { useListMyOrders, useListProviders, useListProviderProducts, getListProvidersQueryKey } from '@workspace/api-client-react';
 import { getPersonalizedProductRecommendations, PersonalizedProductRecommendationsInput } from '@/ai/flows/product-recommendations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,31 +8,32 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ArrowRight, Loader2, Search } from 'lucide-react';
 import { Link } from 'wouter';
 import { useLocation } from '@/hooks/useLocation';
-import { sortByDistance } from '@workspace/geo';
+import { useCustomerPoint } from '@/hooks/useNearby';
 
 const NEAREST_STORES = 3;
 const MAX_PRODUCTS_PER_STORE = 8;
 
 export default function PersonalizedSuggestionsSection() {
   const { user, isLoaded } = useUser();
-  const { location, hasRealLocation } = useLocation();
+  const { location } = useLocation();
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // With a location the server sends only the stores that deliver there, nearest first.
+  const point = useCustomerPoint();
+  const storeParams = { type: 'store' as const, ...point };
   const { data: stores, isLoading: storesLoading } = useListProviders(
-    { type: 'store' },
-    { query: { queryKey: ["listProviders", { type: 'store' }] } }
+    storeParams,
+    { query: { queryKey: getListProvidersQueryKey(storeParams) } }
   );
   const { data: orders, isLoading: ordersLoading } = useListMyOrders({
     query: { enabled: !!user, queryKey: ["listMyOrders"] },
   });
 
-  const origin = hasRealLocation ? location : null;
-
   const nearestStores = useMemo(
-    () => sortByDistance(Array.isArray(stores) ? stores : [], origin).slice(0, NEAREST_STORES),
-    [stores, origin]
+    () => (Array.isArray(stores) ? stores : []).slice(0, NEAREST_STORES),
+    [stores]
   );
 
   const store1 = nearestStores[0]?.id ?? '';

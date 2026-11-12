@@ -11,8 +11,7 @@ import {
   type Service,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocation } from '@/hooks/useLocation';
-import { formatDistance, providerDistance } from '@workspace/geo';
+import DeliveryReach from '@/components/shared/DeliveryReach';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -22,7 +21,6 @@ import {
   Loader2,
   MapPin,
   MessageSquare,
-  Navigation,
   Phone,
   Send,
   Star,
@@ -57,7 +55,6 @@ export default function ServiceProviderDetailPage({ params }: { params: { catego
   const [, navigate] = useRouterLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { location, hasRealLocation } = useLocation();
 
   const { data: provider, isLoading, isError } = useGetProvider(params.id, {
     query: { enabled: !!params.id, queryKey: ['getProvider', params.id] },
@@ -194,7 +191,6 @@ export default function ServiceProviderDetailPage({ params }: { params: { catego
     );
   }
 
-  const distance = providerDistance(hasRealLocation ? location : null, provider);
   const averageRating = reviewList.length
     ? reviewList.reduce((sum, review) => sum + review.rating, 0) / reviewList.length
     : provider.rating;
@@ -248,11 +244,7 @@ export default function ServiceProviderDetailPage({ params }: { params: { catego
             <div>
               <p className="font-medium text-sm">Location</p>
               <p className="text-muted-foreground text-sm">{provider.address || 'Service area varies'}</p>
-              {typeof distance === 'number' && (
-                <p className="text-xs text-primary flex items-center gap-1 mt-1">
-                  <Navigation className="h-3 w-3" /> {formatDistance(distance)} away
-                </p>
-              )}
+              <DeliveryReach provider={provider} className="text-xs mt-1" />
             </div>
           </CardContent>
         </Card>

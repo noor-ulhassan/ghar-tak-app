@@ -39,6 +39,21 @@ export function providerDistance(origin: Coords | null, provider: Located): numb
   return distanceKm(origin, { lat: provider.lat, lng: provider.lng });
 }
 
+interface Reaching extends Located {
+  deliveryRadiusKm?: number | null;
+}
+
+/**
+ * How far the provider is from `point` and whether its radius (or the default) reaches it,
+ * the same rule the server's "near me" list uses. Null when either location is unknown.
+ */
+export function deliveryReach(point: Coords | null, provider: Reaching) {
+  const km = providerDistance(point, provider);
+  if (km === null) return null;
+  const radiusKm = provider.deliveryRadiusKm ?? DEFAULT_DELIVERY_RADIUS_KM;
+  return { distanceKm: km, radiusKm, reaches: km <= radiusKm };
+}
+
 export function sortByDistance<T extends Located>(items: T[], origin: Coords | null): T[] {
   if (!origin) return items;
   return [...items].sort((a, b) => {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { distanceKm, formatDistance, providerDistance, sortByDistance } from "./index";
+import {
+  DEFAULT_DELIVERY_RADIUS_KM,
+  deliveryReach,
+  distanceKm,
+  formatDistance,
+  providerDistance,
+  sortByDistance,
+} from "./index";
 
 // One degree of latitude along a meridian on a sphere of radius 6371 km.
 const ONE_DEGREE_KM = (2 * Math.PI * 6371) / 360;
@@ -82,5 +89,32 @@ describe("sortByDistance", () => {
     const items = [far, near];
     sortByDistance(items, origin);
     expect(items.map((p) => p.id)).toEqual(["far", "near"]);
+  });
+});
+
+describe("deliveryReach", () => {
+  const point = { lat: 31, lng: 74 };
+  const north = (km: number) => ({ lat: 31 + km / ONE_DEGREE_KM, lng: 74 });
+
+  it("uses the default radius when the provider has none", () => {
+    expect(deliveryReach(point, north(DEFAULT_DELIVERY_RADIUS_KM - 0.01))).toMatchObject({
+      reaches: true,
+      radiusKm: DEFAULT_DELIVERY_RADIUS_KM,
+    });
+    expect(deliveryReach(point, north(DEFAULT_DELIVERY_RADIUS_KM + 0.01))?.reaches).toBe(false);
+  });
+
+  it("uses the provider's own radius", () => {
+    expect(deliveryReach(point, { ...north(9.9), deliveryRadiusKm: 10 })).toMatchObject({ reaches: true, radiusKm: 10 });
+    expect(deliveryReach(point, { ...north(2), deliveryRadiusKm: 1.5 })?.reaches).toBe(false);
+  });
+
+  it("gives the distance it measured", () => {
+    expect(deliveryReach(point, north(3))?.distanceKm).toBeCloseTo(3, 9);
+  });
+
+  it("is null when either location is unknown", () => {
+    expect(deliveryReach(null, north(1))).toBeNull();
+    expect(deliveryReach(point, { lat: null, lng: null })).toBeNull();
   });
 });
