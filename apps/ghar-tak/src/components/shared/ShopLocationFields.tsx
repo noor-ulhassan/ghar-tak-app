@@ -78,7 +78,7 @@ export default function ShopLocationFields({
           inputMode="decimal"
           min={MIN_DELIVERY_RADIUS_KM}
           max={MAX_DELIVERY_RADIUS_KM}
-          step={0.5}
+          step="any"
           value={value.radiusKm}
           onChange={(e) => onChange({ ...value, radiusKm: e.target.value })}
           aria-invalid={problem !== null}

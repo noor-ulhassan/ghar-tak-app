@@ -443,6 +443,8 @@ describe("providers that reach the customer", () => {
       { lat: "31.52" },
       { lng: "74.35" },
       { lat: "", lng: "74.35" },
+      { lat: " ", lng: "74.35" },
+      { lat: "31.52", lng: "  " },
       { lat: "abc", lng: "74.35" },
       { lat: "91", lng: "74.35" },
       { lat: "31.52", lng: "-181" },

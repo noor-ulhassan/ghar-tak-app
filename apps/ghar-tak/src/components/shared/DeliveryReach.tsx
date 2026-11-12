@@ -9,9 +9,11 @@ export default function DeliveryReach({ provider, className = '' }: { provider: 
   if (!reach) return null;
 
   const isService = provider.type === 'service';
+  // The distance is rounded for display, so one a little past the edge can read as equal to the radius.
+  const justOutside = reach.distanceKm - reach.radiusKm < 0.1;
   const verdict = reach.reaches
     ? isService ? 'serves your location' : 'delivers to your location'
-    : `outside its ${reach.radiusKm} km ${isService ? 'service' : 'delivery'} area`;
+    : `${justOutside ? 'just outside' : 'outside'} its ${reach.radiusKm} km ${isService ? 'service' : 'delivery'} area`;
 
   return (
     <div

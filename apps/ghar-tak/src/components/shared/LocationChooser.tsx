@@ -31,6 +31,11 @@ function ChooserBody({ onDone }: { onDone: () => void }) {
   const { location, chooseLocation } = useLocation();
   const [point, setPoint] = useState<Coords | null>(() => (location ? { lat: location.lat, lng: location.lng } : null));
   const [jumpTo, setJumpTo] = useState<{ point: Coords; zoom: number } | null>(null);
+  // The last reading "Use my current location" placed. Kept unchanged, it is saved as the
+  // device's location (refreshed daily, flagged when vague) rather than as a pinned spot.
+  const [deviceFix, setDeviceFix] = useState<{ point: Coords; accuracyM: number } | null>(null);
+  const keptDeviceFix =
+    deviceFix && point && deviceFix.point.lat === point.lat && deviceFix.point.lng === point.lng ? deviceFix : null;
 
   return (
     <>
@@ -55,7 +60,12 @@ function ChooserBody({ onDone }: { onDone: () => void }) {
           ))}
         </div>
         <Suspense fallback={<div className="h-72 rounded-md border bg-muted animate-pulse" />}>
-          <LocationPicker value={point} onChange={setPoint} jumpTo={jumpTo} />
+          <LocationPicker
+            value={point}
+            onChange={setPoint}
+            jumpTo={jumpTo}
+            onLocate={(located, accuracyM) => setDeviceFix({ point: located, accuracyM })}
+          />
         </Suspense>
       </div>
       <DialogFooter>
@@ -64,7 +74,7 @@ function ChooserBody({ onDone }: { onDone: () => void }) {
           disabled={!point}
           onClick={() => {
             if (!point) return;
-            chooseLocation(point);
+            chooseLocation(point, keptDeviceFix?.accuracyM);
             onDone();
           }}
         >

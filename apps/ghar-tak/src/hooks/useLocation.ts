@@ -35,10 +35,12 @@ interface UseLocationReturn {
   error: string | null;
   loading: boolean;
   hasRealLocation: boolean;
-  /** Asks the device again; its answer replaces a pinned spot. */
-  refetchLocation: () => void;
-  /** Saves a spot the customer pinned on the map. */
-  chooseLocation: (point: Coords) => void;
+  /**
+   * Saves the location the customer picked in the location dialog. A device reading they
+   * kept as it was (pass its accuracy) stays a device location: it refreshes daily and is
+   * flagged when vague. Anything else is a pinned spot.
+   */
+  chooseLocation: (point: Coords, deviceAccuracyM?: number) => void;
 }
 
 function readSaved(): Saved | null {
@@ -62,8 +64,10 @@ function readSaved(): Saved | null {
 
 let saved: Saved | null = readSaved();
 let pendingRequest: Promise<Saved | null> | null = null;
-// Set when the customer asks for their device location while an automatic request is in flight.
-let deviceRequestedByCustomer = false;
+
+function announce() {
+  window.dispatchEvent(new CustomEvent<Saved | null>(LOCATION_EVENT, { detail: saved }));
+}
 
 function save(location: Coords, source: LocationSource, accuracyM: number | null) {
   saved = { location: { ...location, address: LABELS[source] }, source, accuracyM, savedAt: Date.now() };
@@ -75,15 +79,23 @@ function save(location: Coords, source: LocationSource, accuracyM: number | null
   } catch {
     // Storage can be unavailable (private mode, quota) — the in-memory copy still works.
   }
-  window.dispatchEvent(new CustomEvent<Saved>(LOCATION_EVENT, { detail: saved }));
+  announce();
+}
+
+// Another tab saved or cleared the location: use the same one here.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORAGE_KEY && event.key !== null) return;
+    saved = readSaved();
+    announce();
+  });
 }
 
 /**
- * Asks the browser where the device is. One request is shared by every caller. An automatic
- * request never replaces a spot the customer pinned; one the customer asked for does.
+ * Asks the browser where the device is; one request is shared by every caller. It never
+ * replaces a spot the customer pinned, even one pinned in another tab meanwhile.
  */
-function requestDeviceLocation(byCustomer: boolean): Promise<Saved | null> {
-  if (byCustomer) deviceRequestedByCustomer = true;
+function requestDeviceLocation(): Promise<Saved | null> {
   if (pendingRequest) return pendingRequest;
 
   pendingRequest = new Promise<Saved | null>((resolve) => {
@@ -93,7 +105,9 @@ function requestDeviceLocation(byCustomer: boolean): Promise<Saved | null> {
     }
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        if (saved?.source === 'chosen' && !deviceRequestedByCustomer) {
+        saved = readSaved() ?? saved;
+        if (saved?.source === 'chosen') {
+          announce();
           resolve(saved);
           return;
         }
@@ -109,7 +123,6 @@ function requestDeviceLocation(byCustomer: boolean): Promise<Saved | null> {
     );
   }).finally(() => {
     pendingRequest = null;
-    deviceRequestedByCustomer = false;
   });
 
   return pendingRequest;
@@ -120,43 +133,31 @@ export function useLocation(): UseLocationReturn {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(saved === null);
 
-  const askDevice = useCallback(async (byCustomer: boolean) => {
-    setLoading(true);
-    setError(null);
-    const result = await requestDeviceLocation(byCustomer);
-    if (!result) {
-      setError(saved ? 'Could not refresh your location. Still using your last one.' : 'Could not get your location.');
-    }
-    setLoading(false);
-  }, []);
-
-  const refetchLocation = useCallback(() => {
-    void askDevice(true);
-  }, [askDevice]);
-
-  const chooseLocation = useCallback((point: Coords) => {
-    save(point, 'chosen', null);
+  const chooseLocation = useCallback((point: Coords, deviceAccuracyM?: number) => {
+    if (deviceAccuracyM === undefined) save(point, 'chosen', null);
+    else save(point, 'device', deviceAccuracyM);
   }, []);
 
   useEffect(() => {
     const onLocationChange = (event: Event) => {
-      const detail = (event as CustomEvent<Saved>).detail;
-      if (!detail) return;
-      setCurrent(detail);
+      setCurrent((event as CustomEvent<Saved | null>).detail);
       setError(null);
       setLoading(false);
     };
 
     window.addEventListener(LOCATION_EVENT, onLocationChange);
     if (!saved) {
-      void askDevice(false);
+      requestDeviceLocation().then((result) => {
+        if (!result) setError('Could not get your location.');
+        setLoading(false);
+      });
     } else if (saved.source === 'device' && Date.now() - saved.savedAt > MAX_DEVICE_LOCATION_AGE_MS) {
       // Refresh quietly: the old location stays on screen, and stays if the refresh fails.
-      void requestDeviceLocation(false);
+      void requestDeviceLocation();
     }
 
     return () => window.removeEventListener(LOCATION_EVENT, onLocationChange);
-  }, [askDevice]);
+  }, []);
 
   return {
     location: current?.location ?? null,
@@ -165,7 +166,6 @@ export function useLocation(): UseLocationReturn {
     error,
     loading,
     hasRealLocation: current !== null,
-    refetchLocation,
     chooseLocation,
   };
 }

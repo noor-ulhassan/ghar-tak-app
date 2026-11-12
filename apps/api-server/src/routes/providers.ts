@@ -39,9 +39,9 @@ const CustomerPointQuery = ListProvidersQueryParams.pick({ lat: true, lng: true 
 function customerPoint(req: Request, res: Response): Coords | null | undefined {
   const { lat, lng } = req.query;
   if (lat === undefined && lng === undefined) return null;
-  // An empty value counts as missing; it would otherwise be read as 0.
+  // An empty or blank value counts as missing; it would otherwise be read as 0.
   const missing = Object.entries({ lat, lng })
-    .filter(([, value]) => value === undefined || value === "")
+    .filter(([, value]) => value === undefined || (typeof value === "string" && value.trim() === ""))
     .map(([field]) => ({ field, message: "Send lat and lng together" }));
   if (missing.length > 0) {
     res.status(400).json({ error: "Invalid request", fields: missing });

@@ -18,19 +18,25 @@ interface LocationPickerProps {
   openAt?: Coords | null;
   /** Each new object moves the map there and chooses that spot (a city button, say). */
   jumpTo?: { point: Coords; zoom: number } | null;
+  /** Told about each device reading "Use my current location" places, with its accuracy. */
+  onLocate?: (point: Coords, accuracyM: number) => void;
 }
 
 /**
- * A map with a fixed pin in the middle: the person moves the map until the pin sits on the
- * right spot. Nothing is chosen until they move the map or use their current location, so
- * an untouched map never saves the place it happened to open at.
+ * A map with a fixed pin in the middle: the person drags the map until the pin sits on the
+ * right spot. Nothing is chosen until they drag it (or pan with the arrow keys) or use their
+ * current location, so an untouched map never saves the place it happened to open at.
+ * Zooming always keeps the pin where it is, and the scroll wheel only zooms once the map has
+ * been clicked, so scrolling the page past the map changes nothing.
  */
-export default function LocationPicker({ value, onChange, openAt, jumpTo }: LocationPickerProps) {
+export default function LocationPicker({ value, onChange, openAt, jumpTo, onLocate }: LocationPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const touchedRef = useRef(value !== null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onLocateRef = useRef(onLocate);
+  onLocateRef.current = onLocate;
   // The last point this map reported, to tell its own changes from ones made outside.
   const reportedRef = useRef<Coords | null>(value);
   const report = (point: Coords) => {
@@ -44,22 +50,38 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo }: Loca
     const container = containerRef.current;
     if (!container) return;
     const start = value ?? openAt ?? LAHORE;
-    const map = L.map(container, { center: [start.lat, start.lng], zoom: value ? 17 : 13 });
+    const map = L.map(container, {
+      center: [start.lat, start.lng],
+      zoom: value ? 17 : 13,
+      // Every kind of zoom keeps the middle, where the pin is, in place.
+      scrollWheelZoom: 'center',
+      doubleClickZoom: 'center',
+      touchZoom: 'center',
+    });
     mapRef.current = map;
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
     }).addTo(map);
 
+    // The wheel zooms only while the map has focus, so it doesn't catch page scrolling.
+    map.scrollWheelZoom.disable();
+    map.on('focus', () => map.scrollWheelZoom.enable());
+    map.on('blur', () => map.scrollWheelZoom.disable());
+
     const choose = () => {
-      const center = map.getCenter();
+      // Dragging past the edge of the world shows another copy of it; wrap back to -180..180.
+      const center = map.getCenter().wrap();
       report({ lat: round7(center.lat), lng: round7(center.lng) });
     };
     const touch = () => {
       touchedRef.current = true;
     };
-    map.on('dragstart zoomstart', touch);
-    container.addEventListener('keydown', touch);
+    const touchOnArrowKey = (event: KeyboardEvent) => {
+      if (event.key.startsWith('Arrow')) touch();
+    };
+    map.on('dragstart', touch);
+    container.addEventListener('keydown', touchOnArrowKey);
     map.on('moveend', () => {
       if (touchedRef.current) choose();
     });
@@ -70,7 +92,7 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo }: Loca
 
     return () => {
       resize.disconnect();
-      container.removeEventListener('keydown', touch);
+      container.removeEventListener('keydown', touchOnArrowKey);
       map.remove();
       mapRef.current = null;
     };
@@ -108,10 +130,11 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo }: Loca
         const map = mapRef.current;
         if (!map) return;
         const point = { lat: round7(position.coords.latitude), lng: round7(position.coords.longitude) };
+        const metres = Math.round(position.coords.accuracy);
         touchedRef.current = true;
         map.setView([point.lat, point.lng], 18);
         report(point);
-        const metres = Math.round(position.coords.accuracy);
+        onLocateRef.current?.(point, metres);
         setNote(
           metres > 100
             ? `Your device only knows this to within about ${metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${metres} m`}. Move the map so the pin sits exactly on the right spot.`
