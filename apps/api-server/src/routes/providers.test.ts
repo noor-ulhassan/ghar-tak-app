@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { asc } from "drizzle-orm";
 import { db, providersTable } from "@workspace/db";
 import { backfillDeliveryRadius } from "@workspace/db/backfill-delivery-radius";
-import { MAX_DELIVERY_RADIUS_KM, MIN_DELIVERY_RADIUS_KM } from "@workspace/geo";
+import {
+  DEFAULT_DELIVERY_RADIUS_KM,
+  EARTH_RADIUS_KM,
+  MAX_DELIVERY_RADIUS_KM,
+  MIN_DELIVERY_RADIUS_KM,
+  distanceKm,
+} from "@workspace/geo";
 import {
   SIGNED_IN_AS,
   api,
@@ -331,5 +337,120 @@ describe("copying the old delivery radius text", () => {
     ]);
 
     expect((await backfillDeliveryRadius()).updated).toBe(0);
+  });
+});
+
+describe("providers that reach the customer", () => {
+  beforeEach(resetDatabase);
+
+  const CUSTOMER = { lat: 31.5204, lng: 74.3587 };
+  // The point `km` due north of the customer. The database keeps 7 decimals, a few mm.
+  const north = (km: number) => ({
+    lat: (CUSTOMER.lat + ((km / EARTH_RADIUS_KM) * 180) / Math.PI).toFixed(7),
+    lng: CUSTOMER.lng.toFixed(7),
+  });
+  const shop = (name: string, km: number | null, radiusKm: number | null, fields: Record<string, unknown> = {}) =>
+    createProvider(name, {
+      name,
+      ...(km === null ? {} : north(km)),
+      deliveryRadiusKm: radiusKm === null ? null : String(radiusKm),
+      ...fields,
+    });
+  const nearby = (query: Record<string, string | number> = {}) =>
+    api().get("/api/providers").query({ ...CUSTOMER, ...query });
+
+  it("lists only the providers whose radius reaches the customer, nearest first", async () => {
+    await shop("Karachi store", null, 50, { lat: "24.8607000", lng: "67.0011000" });
+    await shop("Big radius", 6, 8);
+    await shop("Too far for its radius", 6, 5);
+    await shop("Default radius, far", 6, null);
+    await shop("No map point", null, 50);
+    await shop("Default radius, close", 4, null);
+    await shop("In range", 3, 5);
+
+    const res = await nearby();
+    expect(res.status).toBe(200);
+    expect(res.body.map((p: { name: string }) => p.name)).toEqual(["In range", "Default radius, close", "Big radius"]);
+    expect(res.body.map((p: { distanceKm: number }) => p.distanceKm)).toEqual([
+      expect.closeTo(3, 4),
+      expect.closeTo(4, 4),
+      expect.closeTo(6, 4),
+    ]);
+  });
+
+  it("measures distance exactly as the shared geo code does", async () => {
+    await shop("A", 2.5, 5);
+    const [p] = (await nearby()).body;
+    expect(p.distanceKm).toBeCloseTo(distanceKm(CUSTOMER, { lat: p.lat, lng: p.lng }), 9);
+  });
+
+  it("includes a provider just inside its radius and leaves out one just outside", async () => {
+    await shop("Inside", DEFAULT_DELIVERY_RADIUS_KM - 0.01, null);
+    await shop("Outside", DEFAULT_DELIVERY_RADIUS_KM + 0.01, null);
+    await shop("Inside its own radius", 9.99, 10);
+    await shop("Outside its own radius", 10.01, 10);
+
+    const names = (await nearby()).body.map((p: { name: string }) => p.name);
+    expect(names).toEqual(["Inside", "Inside its own radius"]);
+  });
+
+  it("combines the location with the type and category filters", async () => {
+    await shop("Plumber", 1, 5, { type: "service", category: "plumber" });
+    await shop("Grocer", 2, 5, { type: "store", category: "Grocery" });
+    await shop("Far plumber", 9, 5, { type: "service", category: "plumber" });
+
+    expect((await nearby({ type: "service" })).body.map((p: { name: string }) => p.name)).toEqual(["Plumber"]);
+    expect((await nearby({ category: "groceries" })).body.map((p: { name: string }) => p.name)).toEqual(["Grocer"]);
+  });
+
+  it("lists every provider, without distances, when no location is sent", async () => {
+    await shop("In range", 3, 5);
+    await shop("Far away", 300, 5);
+    await shop("No map point", null, null);
+
+    const res = await api().get("/api/providers");
+    expect(res.body).toHaveLength(3);
+    expect(res.body.every((p: object) => !("distanceKm" in p))).toBe(true);
+  });
+
+  it("agrees with the shared geo code on who is in range and how far", async () => {
+    // 60 shops scattered up to about 45 km away, with radii from 1 to 30 km.
+    let seed = 7;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const shops = [];
+    for (let i = 0; i < 60; i++) {
+      const point = {
+        lat: (CUSTOMER.lat + (random() - 0.5) * 0.8).toFixed(7),
+        lng: (CUSTOMER.lng + (random() - 0.5) * 0.8).toFixed(7),
+      };
+      const radiusKm = (1 + Math.floor(random() * 290) / 10).toFixed(1);
+      shops.push(await createProvider(`s${i}`, { name: `s${i}`, ...point, deliveryRadiusKm: radiusKm }));
+    }
+    const expected = shops
+      .map((p) => ({ name: p.name, km: distanceKm(CUSTOMER, { lat: Number(p.lat), lng: Number(p.lng) }), radius: Number(p.deliveryRadiusKm) }))
+      .filter((p) => p.km <= p.radius)
+      .sort((a, b) => a.km - b.km);
+
+    const res = await nearby();
+    expect(expected.length).toBeGreaterThan(5);
+    expect(expected.length).toBeLessThan(55);
+    expect(res.body.map((p: { name: string }) => p.name)).toEqual(expected.map((p) => p.name));
+    res.body.forEach((p: { distanceKm: number }, i: number) => expect(p.distanceKm).toBeCloseTo(expected[i].km, 9));
+  });
+
+  it("refuses half a location, an empty one, or one that isn't on the globe", async () => {
+    for (const query of [
+      { lat: "31.52" },
+      { lng: "74.35" },
+      { lat: "", lng: "74.35" },
+      { lat: "abc", lng: "74.35" },
+      { lat: "91", lng: "74.35" },
+      { lat: "31.52", lng: "-181" },
+    ]) {
+      const res = await api().get("/api/providers").query(query);
+      expect(res.status, JSON.stringify(query)).toBe(400);
+    }
+    const half = await api().get("/api/providers").query({ lat: "31.52" });
+    expect(half.body.fields).toEqual([{ field: "lng", message: "Send lat and lng together" }]);
   });
 });

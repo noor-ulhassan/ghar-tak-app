@@ -1,7 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable, ordersTable, reviewsTable } from "@workspace/db";
-import { eq, and, ilike, or, count, avg, inArray, sql } from "drizzle-orm";
-import { CreateProviderBody, UpdateMyProviderBody } from "@workspace/api-zod";
+import { eq, and, ilike, or, count, avg, inArray, isNotNull, sql } from "drizzle-orm";
+import { CreateProviderBody, ListProvidersQueryParams, UpdateMyProviderBody } from "@workspace/api-zod";
+import { DEFAULT_DELIVERY_RADIUS_KM, EARTH_RADIUS_KM, type Coords } from "@workspace/geo";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 import { categoryMatchTerms } from "./categories";
@@ -32,11 +33,48 @@ function locationFields(
   };
 }
 
+const CustomerPointQuery = ListProvidersQueryParams.pick({ lat: true, lng: true }).required();
+
+/** The customer's point from ?lat=&lng=: null when neither is sent, undefined once a 400 has gone out. */
+function customerPoint(req: Request, res: Response): Coords | null | undefined {
+  const { lat, lng } = req.query;
+  if (lat === undefined && lng === undefined) return null;
+  // An empty value counts as missing; it would otherwise be read as 0.
+  const missing = Object.entries({ lat, lng })
+    .filter(([, value]) => value === undefined || value === "")
+    .map(([field]) => ({ field, message: "Send lat and lng together" }));
+  if (missing.length > 0) {
+    res.status(400).json({ error: "Invalid request", fields: missing });
+    return undefined;
+  }
+  const parsed = CustomerPointQuery.safeParse({ lat, lng });
+  if (parsed.success) return parsed.data;
+  res.status(400).json({
+    error: "Invalid request",
+    fields: parsed.error.issues.map((issue) => ({ field: issue.path.join("."), message: issue.message })),
+  });
+  return undefined;
+}
+
+/** Straight-line km from `point` to each provider, by the same formula as distanceKm in @workspace/geo. */
+function distanceFrom(point: Coords) {
+  const lat = sql`${providersTable.lat}::float8`;
+  const lng = sql`${providersTable.lng}::float8`;
+  const fromLat = sql`${point.lat}::float8`;
+  const fromLng = sql`${point.lng}::float8`;
+  return sql<number>`2 * ${EARTH_RADIUS_KM}::float8 * asin(least(1, sqrt(
+    power(sin(radians(${lat} - ${fromLat}) / 2), 2)
+    + cos(radians(${fromLat})) * cos(radians(${lat})) * power(sin(radians(${lng} - ${fromLng}) / 2), 2)
+  )))`.mapWith(Number);
+}
+
 // GET /api/providers
 router.get("/providers", async (req: Request, res: Response) => {
+  const point = customerPoint(req, res);
+  if (point === undefined) return;
+
   try {
     const { type, q } = req.query as Record<string, string>;
-    let query = db.select().from(providersTable);
 
     const conditions = [];
     if (type) conditions.push(eq(providersTable.type, type));
@@ -54,10 +92,26 @@ router.get("/providers", async (req: Request, res: Response) => {
       );
     }
 
-    const rows = conditions.length > 0
-      ? await db.select().from(providersTable).where(and(...conditions))
-      : await db.select().from(providersTable);
+    if (point) {
+      // Only providers with a map point whose own radius (or the default) reaches the customer.
+      const distance = distanceFrom(point);
+      const rows = await db
+        .select({ provider: providersTable, distanceKm: distance })
+        .from(providersTable)
+        .where(
+          and(
+            ...conditions,
+            isNotNull(providersTable.lat),
+            isNotNull(providersTable.lng),
+            sql`${distance} <= coalesce(${providersTable.deliveryRadiusKm}::float8, ${DEFAULT_DELIVERY_RADIUS_KM}::float8)`,
+          ),
+        )
+        .orderBy(distance, providersTable.id);
+      res.json(rows.map((row) => providerJson(row.provider, { distanceKm: row.distanceKm })));
+      return;
+    }
 
+    const rows = await db.select().from(providersTable).where(and(...conditions));
     res.json(rows.map((p) => providerJson(p)));
   } catch (err) {
     req.log.error({ err }, "GET /providers error");

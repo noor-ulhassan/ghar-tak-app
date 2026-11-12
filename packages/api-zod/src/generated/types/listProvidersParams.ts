@@ -5,12 +5,17 @@
  * Ghar Tak — hyperlocal services & delivery SaaS API
  * OpenAPI spec version: 0.2.0
  */
+import type { Latitude } from './latitude';
 import type { ListProvidersType } from './listProvidersType';
+import type { Longitude } from './longitude';
 
 export type ListProvidersParams = {
 category?: string;
 type?: ListProvidersType;
 q?: string;
-lat?: number;
-lng?: number;
+/**
+ * With lng, lists only the providers whose delivery radius reaches this point, nearest first, each with distanceKm.
+ */
+lat?: Latitude;
+lng?: Longitude;
 };

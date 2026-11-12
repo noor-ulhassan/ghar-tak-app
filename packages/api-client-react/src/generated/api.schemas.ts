@@ -91,6 +91,8 @@ export interface Provider {
   lat?: number | null;
   /** @nullable */
   lng?: number | null;
+  /** Straight-line km from the lat/lng the list was asked for. Only sent on such lists. */
+  distanceKm?: number;
   rating: number;
   reviewCount: number;
   isFavorite?: boolean;
@@ -673,8 +675,11 @@ export type ListProvidersParams = {
 category?: string;
 type?: ListProvidersType;
 q?: string;
-lat?: number;
-lng?: number;
+/**
+ * With lng, lists only the providers whose delivery radius reaches this point, nearest first, each with distanceKm.
+ */
+lat?: Latitude;
+lng?: Longitude;
 };
 
 export type ListProvidersType = typeof ListProvidersType[keyof typeof ListProvidersType];

@@ -36,6 +36,8 @@ export interface Provider {
   lat?: number | null;
   /** @nullable */
   lng?: number | null;
+  /** Straight-line km from the lat/lng the list was asked for. Only sent on such lists. */
+  distanceKm?: number;
   rating: number;
   reviewCount: number;
   isFavorite?: boolean;

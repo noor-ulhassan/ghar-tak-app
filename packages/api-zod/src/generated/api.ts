@@ -73,12 +73,20 @@ export const ListCategoriesResponse = zod.array(ListCategoriesResponseItem)
 /**
  * @summary List all providers (stores & service providers)
  */
+export const listProvidersQueryLatMin = -90;
+export const listProvidersQueryLatMax = 90;
+
+export const listProvidersQueryLngMin = -180;
+export const listProvidersQueryLngMax = 180;
+
+
+
 export const ListProvidersQueryParams = zod.object({
   "category": zod.coerce.string().optional(),
   "type": zod.enum(['store', 'service', 'restaurant']).optional(),
   "q": zod.coerce.string().optional(),
-  "lat": zod.coerce.number().optional(),
-  "lng": zod.coerce.number().optional()
+  "lat": zod.coerce.number().min(listProvidersQueryLatMin).max(listProvidersQueryLatMax).optional().describe('With lng, lists only the providers whose delivery radius reaches this point, nearest first, each with distanceKm.'),
+  "lng": zod.coerce.number().min(listProvidersQueryLngMin).max(listProvidersQueryLngMax).optional()
 })
 
 export const ListProvidersResponseItem = zod.object({
@@ -97,6 +105,7 @@ export const ListProvidersResponseItem = zod.object({
   "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
+  "distanceKm": zod.number().optional().describe('Straight-line km from the lat\/lng the list was asked for. Only sent on such lists.'),
   "rating": zod.number(),
   "reviewCount": zod.number(),
   "isFavorite": zod.boolean().optional(),
@@ -168,6 +177,7 @@ export const GetMyProviderResponse = zod.object({
   "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
+  "distanceKm": zod.number().optional().describe('Straight-line km from the lat\/lng the list was asked for. Only sent on such lists.'),
   "rating": zod.number(),
   "reviewCount": zod.number(),
   "isFavorite": zod.boolean().optional(),
@@ -236,6 +246,7 @@ export const UpdateMyProviderResponse = zod.object({
   "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
+  "distanceKm": zod.number().optional().describe('Straight-line km from the lat\/lng the list was asked for. Only sent on such lists.'),
   "rating": zod.number(),
   "reviewCount": zod.number(),
   "isFavorite": zod.boolean().optional(),
@@ -269,6 +280,7 @@ export const GetProviderResponse = zod.object({
   "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
+  "distanceKm": zod.number().optional().describe('Straight-line km from the lat\/lng the list was asked for. Only sent on such lists.'),
   "rating": zod.number(),
   "reviewCount": zod.number(),
   "isFavorite": zod.boolean().optional(),
@@ -1113,6 +1125,7 @@ export const SearchResponse = zod.object({
   "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
+  "distanceKm": zod.number().optional().describe('Straight-line km from the lat\/lng the list was asked for. Only sent on such lists.'),
   "rating": zod.number(),
   "reviewCount": zod.number(),
   "isFavorite": zod.boolean().optional(),

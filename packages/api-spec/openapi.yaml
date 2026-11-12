@@ -125,12 +125,13 @@ paths:
             type: string
         - name: lat
           in: query
+          description: With lng, lists only the providers whose delivery radius reaches this point, nearest first, each with distanceKm.
           schema:
-            type: number
+            $ref: "#/components/schemas/Latitude"
         - name: lng
           in: query
           schema:
-            type: number
+            $ref: "#/components/schemas/Longitude"
       responses:
         "200":
           description: List of providers
@@ -1117,6 +1118,9 @@ components:
           type: [number, "null"]
         lng:
           type: [number, "null"]
+        distanceKm:
+          type: number
+          description: Straight-line km from the lat/lng the list was asked for. Only sent on such lists.
         rating:
           type: number
         reviewCount:
