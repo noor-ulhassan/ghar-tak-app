@@ -8,7 +8,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ArrowRight, Loader2, Search } from 'lucide-react';
 import { Link } from 'wouter';
 import { useLocation } from '@/hooks/useLocation';
-import { sortByDistance } from '@/lib/geo';
+import { sortByDistance } from '@workspace/geo';
 
 const NEAREST_STORES = 3;
 const MAX_PRODUCTS_PER_STORE = 8;

@@ -7,6 +7,9 @@
       "path": "./packages/db"
     },
     {
+      "path": "./packages/geo"
+    },
+    {
       "path": "./packages/api-client-react"
     },
     {

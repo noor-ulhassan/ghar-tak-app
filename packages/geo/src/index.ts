@@ -19,7 +19,8 @@ export function distanceKm(from: Coords, to: Coords): number {
 }
 
 export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m`;
+  const metres = Math.max(50, Math.round((km * 1000) / 50) * 50);
+  if (metres < 1000) return `${metres} m`;
   return `${km.toFixed(1)} km`;
 }
 

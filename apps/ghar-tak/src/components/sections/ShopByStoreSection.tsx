@@ -6,7 +6,7 @@ import { ShoppingBag, Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useLocation } from '@/hooks/useLocation';
-import { sortByDistance } from '@/lib/geo';
+import { sortByDistance } from '@workspace/geo';
 
 function StoreProducts({ storeId, storeName }: { storeId: string; storeName: string }) {
   const { data: products, isLoading } = useListProviderProducts(storeId, undefined, { query: { enabled: !!storeId, queryKey: ["listProviderProducts", storeId] } });

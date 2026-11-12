@@ -7,7 +7,7 @@ import { Link } from 'wouter';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import type { Provider } from '@workspace/api-client-react';
 import { useLocation } from '@/hooks/useLocation';
-import { providerDistance, sortByDistance } from '@/lib/geo';
+import { providerDistance, sortByDistance } from '@workspace/geo';
 
 const SORTED_ITEMS_COUNT = 3;
 

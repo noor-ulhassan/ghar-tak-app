@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Star, CalendarClock, Heart, Navigation, BadgeCheck } from 'lucide-react';
-import { formatDistance } from '@/lib/geo';
+import { formatDistance } from '@workspace/geo';
 import { useFavorites } from '@/hooks/useFavorites';
 
 interface ServiceCardProps {

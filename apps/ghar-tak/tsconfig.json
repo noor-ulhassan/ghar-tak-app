@@ -19,6 +19,9 @@
       "path": "../../packages/api-client-react"
     },
     {
+      "path": "../../packages/geo"
+    },
+    {
       "path": "../../packages/replit-auth-web"
     }
   ]

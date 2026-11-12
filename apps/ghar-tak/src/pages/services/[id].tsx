@@ -12,7 +12,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from '@/hooks/useLocation';
-import { formatDistance, providerDistance } from '@/lib/geo';
+import { formatDistance, providerDistance } from '@workspace/geo';
 import {
   ArrowLeft,
   BadgeCheck,

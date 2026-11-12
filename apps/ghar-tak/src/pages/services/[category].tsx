@@ -7,7 +7,7 @@ import SearchInput from '@/components/shared/SearchInput';
 import * as Icons from 'lucide-react';
 import { useMemo } from 'react';
 import { useLocation } from '@/hooks/useLocation';
-import { providerDistance, sortByDistance } from '@/lib/geo';
+import { providerDistance, sortByDistance } from '@workspace/geo';
 
 export default function ServiceCategoryPage({ params }: { params: { category: string } }) {
   const { data: categories, isLoading: categoriesLoading } = useListCategories({ query: { queryKey: ["listCategories"] } });

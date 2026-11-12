@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Heart, MapPin, Star, Clock, Navigation } from 'lucide-react';
 import { useFavorites } from '@/hooks/useFavorites';
-import { formatDistance } from '@/lib/geo';
+import { formatDistance } from '@workspace/geo';
 
 interface StoreCardProps {
   store: Provider;

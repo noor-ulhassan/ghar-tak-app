@@ -4,7 +4,7 @@ import SearchInput from '@/components/shared/SearchInput';
 import { ShoppingCart, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useLocation } from '@/hooks/useLocation';
-import { providerDistance, sortByDistance } from '@/lib/geo';
+import { providerDistance, sortByDistance } from '@workspace/geo';
 
 export default function AllStoresPage() {
   // Restaurants sell through the same store page, so they are listed with the stores.

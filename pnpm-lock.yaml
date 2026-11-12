@@ -320,6 +320,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../packages/api-client-react
+      '@workspace/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -847,6 +850,12 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.21.0
+
+  packages/geo:
+    devDependencies:
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@25.6.2)(vite@7.3.3(@types/node@25.6.2)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.8.4))
 
   packages/integrations-openai-ai-react: {}
 
