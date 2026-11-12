@@ -16,13 +16,14 @@ import {
   Briefcase, Building, BadgeCheck, CalendarClock, Edit3, Eye, ListChecks,
   Loader2, MessageSquare, Package, PlusCircle, ShoppingBag, ShoppingCart,
   Star, Trash2, TrendingUp, Users, DollarSign, ArrowUpRight, BarChart3,
-  AlertCircle,
+  AlertCircle, MapPin,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorReason } from "@/lib/api-error";
 import ConversationsList from "@/components/shared/ConversationsList";
+import ShopLocationFields, { initialShopLocation, radiusProblem, shopLocationRequest } from "@/components/shared/ShopLocationFields";
 import {
   useGetMyProvider, useGetMyProviderStats, useUpdateMyProvider,
   useListProviderProducts, useCreateProduct, useUpdateProduct, useDeleteProduct,
@@ -802,6 +803,8 @@ export default function ProviderDashboardPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
+  const [editLocation, setEditLocation] = useState(initialShopLocation);
+  const editRadiusError = radiusProblem(editLocation.radiusKm);
 
   // ── loading / auth gates ────────────────────────────────────────────────────
 
@@ -867,8 +870,10 @@ export default function ProviderDashboardPage() {
       openingHours: provider.openingHours ?? "",
       isOpen: provider.isOpen ?? true,
     });
+    setEditLocation(initialShopLocation(provider));
     setEditOpen(true);
   };
+  const hasMapPoint = provider.lat != null && provider.lng != null;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -932,10 +937,14 @@ export default function ProviderDashboardPage() {
                     {editForm.isOpen ? "Open" : "Closed"}
                   </Button>
                 </div>
+                <ShopLocationFields providerType={provider.type} value={editLocation} onChange={setEditLocation} />
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-                <Button onClick={() => updateProviderMutation.mutate({ data: editForm })} disabled={updateProviderMutation.isPending}>
+                <Button
+                  onClick={() => updateProviderMutation.mutate({ data: { ...editForm, ...shopLocationRequest(editLocation) } })}
+                  disabled={updateProviderMutation.isPending || editRadiusError !== null}
+                >
                   {updateProviderMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save Changes
                 </Button>
@@ -947,6 +956,21 @@ export default function ProviderDashboardPage() {
           </Button>
         </div>
       </div>
+
+      {!hasMapPoint && (
+        <Card className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <MapPin className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">Customers near you can't find you yet</p>
+              <p className="text-sm text-muted-foreground">
+                "Near me" lists only show businesses with a location on the map. Set yours in Edit Business.
+              </p>
+            </div>
+            <Button size="sm" onClick={openEdit}>Set location</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

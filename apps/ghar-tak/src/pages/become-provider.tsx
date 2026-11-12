@@ -8,6 +8,8 @@ import { Link, useLocation } from 'wouter';
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorReason } from "@/lib/api-error";
 import CategorySelect from "@/components/shared/CategorySelect";
+import ShopLocationFields, { initialShopLocation, radiusProblem, shopLocationRequest } from "@/components/shared/ShopLocationFields";
+import { useCustomerPoint } from "@/hooks/useNearby";
 import { useCreateProvider } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useUser } from "@clerk/react";
@@ -17,7 +19,11 @@ export default function BecomeProviderPage() {
   const { user, isLoaded } = useUser();
   const [, setLocation] = useLocation();
   const createProvider = useCreateProvider();
-  
+  // Sellers often sign up from the shop, so the map opens where the site last saw them.
+  const lastSeenAt = useCustomerPoint();
+  const [shopLocation, setShopLocation] = useState(initialShopLocation);
+  const radiusError = radiusProblem(shopLocation.radiusKm);
+
   const [formData, setFormData] = useState({
     name: "",
     type: "store",
@@ -30,6 +36,7 @@ export default function BecomeProviderPage() {
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (radiusError) return;
     createProvider.mutate(
       {
         data: {
@@ -40,6 +47,7 @@ export default function BecomeProviderPage() {
           phone: formData.phone,
           category: formData.category,
           email: formData.email,
+          ...shopLocationRequest(shopLocation),
         }
       },
       {
@@ -120,14 +128,15 @@ export default function BecomeProviderPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="address">Business Address</Label>
-                  <Input id="address" placeholder="123 Main St, Anytown" required value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+                  <Input id="address" placeholder="Shop no., street, area, city" required value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input id="phone" placeholder="+92 300 1234567" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
                 </div>
               </div>
-              <Button type="submit" className="w-full text-lg py-6" disabled={createProvider.isPending}>
+              <ShopLocationFields providerType={formData.type} value={shopLocation} onChange={setShopLocation} openAt={lastSeenAt} />
+              <Button type="submit" className="w-full text-lg py-6" disabled={createProvider.isPending || radiusError !== null}>
                 {createProvider.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
                 Submit Registration
               </Button>

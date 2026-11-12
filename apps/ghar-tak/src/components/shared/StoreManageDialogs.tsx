@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorReason } from "@/lib/api-error";
 import CategorySelect from "@/components/shared/CategorySelect";
+import ShopLocationFields, { initialShopLocation, radiusProblem, shopLocationRequest } from "@/components/shared/ShopLocationFields";
 import {
   useUpdateMyProvider,
   useCreateProduct, useUpdateProduct,
@@ -31,9 +32,12 @@ export function EditShopDialog({
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<UpdateProviderRequest>({});
+  const [location, setLocation] = useState(initialShopLocation);
+  const radiusError = radiusProblem(location.radiusKm);
 
   useEffect(() => {
     if (open) {
+      setLocation(initialShopLocation(shop));
       setForm({
         name: shop.name ?? "",
         category: shop.category ?? "",
@@ -86,12 +90,13 @@ export function EditShopDialog({
               {form.isOpen ? "Open" : "Closed"}
             </Button>
           </div>
+          <ShopLocationFields providerType={shop.type} value={location} onChange={setLocation} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            onClick={() => mutation.mutate({ data: form })}
-            disabled={mutation.isPending || !form.name?.trim()}
+            onClick={() => mutation.mutate({ data: { ...form, ...shopLocationRequest(location) } })}
+            disabled={mutation.isPending || !form.name?.trim() || radiusError !== null}
           >
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
