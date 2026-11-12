@@ -16,6 +16,8 @@ interface LocationPickerProps {
   onChange: (point: Coords) => void;
   /** Where to open the map when `value` is null, e.g. the customer's last known location. */
   openAt?: Coords | null;
+  /** Each new object moves the map there and chooses that spot (a city button, say). */
+  jumpTo?: { point: Coords; zoom: number } | null;
 }
 
 /**
@@ -23,12 +25,18 @@ interface LocationPickerProps {
  * right spot. Nothing is chosen until they move the map or use their current location, so
  * an untouched map never saves the place it happened to open at.
  */
-export default function LocationPicker({ value, onChange, openAt }: LocationPickerProps) {
+export default function LocationPicker({ value, onChange, openAt, jumpTo }: LocationPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const touchedRef = useRef(value !== null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // The last point this map reported, to tell its own changes from ones made outside.
+  const reportedRef = useRef<Coords | null>(value);
+  const report = (point: Coords) => {
+    reportedRef.current = point;
+    onChangeRef.current(point);
+  };
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -45,7 +53,7 @@ export default function LocationPicker({ value, onChange, openAt }: LocationPick
 
     const choose = () => {
       const center = map.getCenter();
-      onChangeRef.current({ lat: round7(center.lat), lng: round7(center.lng) });
+      report({ lat: round7(center.lat), lng: round7(center.lng) });
     };
     const touch = () => {
       touchedRef.current = true;
@@ -66,8 +74,26 @@ export default function LocationPicker({ value, onChange, openAt }: LocationPick
       map.remove();
       mapRef.current = null;
     };
-    // The map is built once; later `value` changes come from this map itself.
+    // The map is built once; the effects below move it.
   }, []);
+
+  // A point set from outside (a form filling in a saved shop, say) moves the map to it.
+  useEffect(() => {
+    const map = mapRef.current;
+    const reported = reportedRef.current;
+    if (!map || !value || (reported && reported.lat === value.lat && reported.lng === value.lng)) return;
+    reportedRef.current = value;
+    touchedRef.current = true;
+    map.setView([value.lat, value.lng], Math.max(map.getZoom(), 17));
+  }, [value]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !jumpTo) return;
+    touchedRef.current = true;
+    map.setView([jumpTo.point.lat, jumpTo.point.lng], jumpTo.zoom);
+    report({ lat: round7(jumpTo.point.lat), lng: round7(jumpTo.point.lng) });
+  }, [jumpTo]);
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -84,7 +110,7 @@ export default function LocationPicker({ value, onChange, openAt }: LocationPick
         const point = { lat: round7(position.coords.latitude), lng: round7(position.coords.longitude) };
         touchedRef.current = true;
         map.setView([point.lat, point.lng], 18);
-        onChangeRef.current(point);
+        report(point);
         const metres = Math.round(position.coords.accuracy);
         setNote(
           metres > 100

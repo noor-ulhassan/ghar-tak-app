@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
+import LocationChooser from '@/components/shared/LocationChooser';
 
 /** The line under a list's title that switches between "near me" and "all". */
 export function NearbyScopeSwitch({ path, showAll }: { path: string; showAll: boolean }) {
@@ -15,12 +17,17 @@ export function NearbyScopeSwitch({ path, showAll }: { path: string; showAll: bo
 
 /** What a "near me" list shows when nothing reaches the customer. */
 export function NoneNearby({ message, allHref, allLabel }: { message: string; allHref: string; allLabel: string }) {
+  const [choosing, setChoosing] = useState(false);
   return (
     <div className="text-center py-10 space-y-4">
       <p className="text-muted-foreground">{message}</p>
-      <Button asChild variant="outline">
-        <Link href={allHref}>{allLabel}</Link>
-      </Button>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button asChild variant="outline">
+          <Link href={allHref}>{allLabel}</Link>
+        </Button>
+        <Button variant="ghost" onClick={() => setChoosing(true)}>Change my location</Button>
+      </div>
+      <LocationChooser open={choosing} onOpenChange={setChoosing} />
     </div>
   );
 }
