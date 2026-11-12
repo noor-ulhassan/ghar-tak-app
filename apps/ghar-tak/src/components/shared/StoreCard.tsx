@@ -68,10 +68,10 @@ export default function StoreCard({ store, distanceKm }: StoreCardProps) {
               <span>{Number(store.rating ?? 0).toFixed(1)}</span>
             </div>
           )}
-          {store.deliveryRadius && (
+          {store.deliveryRadiusKm != null && (
             <div className="flex items-center">
               <Clock className="h-3 w-3 mr-1" />
-              <span>{store.deliveryRadius} delivery</span>
+              <span>{store.deliveryRadiusKm} km delivery</span>
             </div>
           )}
         </div>

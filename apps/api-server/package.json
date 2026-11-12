@@ -15,6 +15,7 @@
     "@clerk/shared": "^4.25.9",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/geo": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -46,4 +47,4 @@
     "supertest": "^7.3.2",
     "vitest": "^5.1.0"
   }
-}
+}

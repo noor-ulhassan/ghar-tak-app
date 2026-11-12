@@ -82,8 +82,11 @@ export interface Provider {
   isOpen: boolean;
   /** @nullable */
   openingHours?: string | null;
-  /** @nullable */
-  deliveryRadius?: string | null;
+  /**
+     * How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).
+     * @nullable
+     */
+  deliveryRadiusKm?: number | null;
   /** @nullable */
   lat?: number | null;
   /** @nullable */
@@ -108,6 +111,25 @@ export const CreateProviderRequestType = {
   restaurant: 'restaurant',
 } as const;
 
+/**
+ * Delivery or service radius in km. The limits match @workspace/geo.
+ * @minimum 0.5
+ * @maximum 50
+ */
+export type DeliveryRadiusKm = number;
+
+/**
+ * @minimum -90
+ * @maximum 90
+ */
+export type Latitude = number;
+
+/**
+ * @minimum -180
+ * @maximum 180
+ */
+export type Longitude = number;
+
 export interface CreateProviderRequest {
   /**
      * @minLength 1
@@ -126,8 +148,9 @@ export interface CreateProviderRequest {
   category?: string;
   /** @maxLength 100 */
   openingHours?: string;
-  /** @maxLength 50 */
-  deliveryRadius?: string;
+  deliveryRadiusKm?: DeliveryRadiusKm;
+  lat?: Latitude;
+  lng?: Longitude;
 }
 
 export interface UpdateProviderRequest {
@@ -146,8 +169,9 @@ export interface UpdateProviderRequest {
   isOpen?: boolean;
   /** @maxLength 100 */
   openingHours?: string;
-  /** @maxLength 50 */
-  deliveryRadius?: string;
+  deliveryRadiusKm?: DeliveryRadiusKm;
+  lat?: Latitude;
+  lng?: Longitude;
   avatarUrl?: string;
   coverUrl?: string;
   /** @maxLength 100 */

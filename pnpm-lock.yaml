@@ -102,6 +102,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@workspace/integrations-openai-ai-server':
         specifier: workspace:*
         version: link:../../packages/integrations-openai-ai-server

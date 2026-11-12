@@ -94,7 +94,7 @@ export const ListProvidersResponseItem = zod.object({
   "coverUrl": zod.string().nullish(),
   "isOpen": zod.boolean(),
   "openingHours": zod.string().nullish(),
-  "deliveryRadius": zod.string().nullish(),
+  "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
   "rating": zod.number(),
@@ -123,7 +123,14 @@ export const createProviderBodyCategoryMax = 100;
 
 export const createProviderBodyOpeningHoursMax = 100;
 
-export const createProviderBodyDeliveryRadiusMax = 50;
+export const createProviderBodyDeliveryRadiusKmMin = 0.5;
+export const createProviderBodyDeliveryRadiusKmMax = 50;
+
+export const createProviderBodyLatMin = -90;
+export const createProviderBodyLatMax = 90;
+
+export const createProviderBodyLngMin = -180;
+export const createProviderBodyLngMax = 180;
 
 
 
@@ -136,7 +143,9 @@ export const CreateProviderBody = zod.object({
   "email": zod.string().max(createProviderBodyEmailMax).optional(),
   "category": zod.string().max(createProviderBodyCategoryMax).optional(),
   "openingHours": zod.string().max(createProviderBodyOpeningHoursMax).optional(),
-  "deliveryRadius": zod.string().max(createProviderBodyDeliveryRadiusMax).optional()
+  "deliveryRadiusKm": zod.number().min(createProviderBodyDeliveryRadiusKmMin).max(createProviderBodyDeliveryRadiusKmMax).optional().describe('Delivery or service radius in km. The limits match @workspace\/geo.'),
+  "lat": zod.number().min(createProviderBodyLatMin).max(createProviderBodyLatMax).optional(),
+  "lng": zod.number().min(createProviderBodyLngMin).max(createProviderBodyLngMax).optional()
 })
 
 
@@ -156,7 +165,7 @@ export const GetMyProviderResponse = zod.object({
   "coverUrl": zod.string().nullish(),
   "isOpen": zod.boolean(),
   "openingHours": zod.string().nullish(),
-  "deliveryRadius": zod.string().nullish(),
+  "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
   "rating": zod.number(),
@@ -182,7 +191,14 @@ export const updateMyProviderBodyEmailMax = 255;
 
 export const updateMyProviderBodyOpeningHoursMax = 100;
 
-export const updateMyProviderBodyDeliveryRadiusMax = 50;
+export const updateMyProviderBodyDeliveryRadiusKmMin = 0.5;
+export const updateMyProviderBodyDeliveryRadiusKmMax = 50;
+
+export const updateMyProviderBodyLatMin = -90;
+export const updateMyProviderBodyLatMax = 90;
+
+export const updateMyProviderBodyLngMin = -180;
+export const updateMyProviderBodyLngMax = 180;
 
 export const updateMyProviderBodyCategoryMax = 100;
 
@@ -196,7 +212,9 @@ export const UpdateMyProviderBody = zod.object({
   "email": zod.string().max(updateMyProviderBodyEmailMax).optional(),
   "isOpen": zod.boolean().optional(),
   "openingHours": zod.string().max(updateMyProviderBodyOpeningHoursMax).optional(),
-  "deliveryRadius": zod.string().max(updateMyProviderBodyDeliveryRadiusMax).optional(),
+  "deliveryRadiusKm": zod.number().min(updateMyProviderBodyDeliveryRadiusKmMin).max(updateMyProviderBodyDeliveryRadiusKmMax).optional().describe('Delivery or service radius in km. The limits match @workspace\/geo.'),
+  "lat": zod.number().min(updateMyProviderBodyLatMin).max(updateMyProviderBodyLatMax).optional(),
+  "lng": zod.number().min(updateMyProviderBodyLngMin).max(updateMyProviderBodyLngMax).optional(),
   "avatarUrl": zod.string().optional(),
   "coverUrl": zod.string().optional(),
   "category": zod.string().max(updateMyProviderBodyCategoryMax).optional()
@@ -215,7 +233,7 @@ export const UpdateMyProviderResponse = zod.object({
   "coverUrl": zod.string().nullish(),
   "isOpen": zod.boolean(),
   "openingHours": zod.string().nullish(),
-  "deliveryRadius": zod.string().nullish(),
+  "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
   "rating": zod.number(),
@@ -248,7 +266,7 @@ export const GetProviderResponse = zod.object({
   "coverUrl": zod.string().nullish(),
   "isOpen": zod.boolean(),
   "openingHours": zod.string().nullish(),
-  "deliveryRadius": zod.string().nullish(),
+  "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
   "rating": zod.number(),
@@ -1092,7 +1110,7 @@ export const SearchResponse = zod.object({
   "coverUrl": zod.string().nullish(),
   "isOpen": zod.boolean(),
   "openingHours": zod.string().nullish(),
-  "deliveryRadius": zod.string().nullish(),
+  "deliveryRadiusKm": zod.number().nullish().describe('How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).'),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
   "rating": zod.number(),

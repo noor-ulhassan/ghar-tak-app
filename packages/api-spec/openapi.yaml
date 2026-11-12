@@ -1110,8 +1110,9 @@ components:
           type: boolean
         openingHours:
           type: [string, "null"]
-        deliveryRadius:
-          type: [string, "null"]
+        deliveryRadiusKm:
+          type: [number, "null"]
+          description: How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).
         lat:
           type: [number, "null"]
         lng:
@@ -1160,9 +1161,28 @@ components:
         openingHours:
           type: string
           maxLength: 100
-        deliveryRadius:
-          type: string
-          maxLength: 50
+        deliveryRadiusKm:
+          $ref: "#/components/schemas/DeliveryRadiusKm"
+        lat:
+          $ref: "#/components/schemas/Latitude"
+        lng:
+          $ref: "#/components/schemas/Longitude"
+
+    DeliveryRadiusKm:
+      type: number
+      minimum: 0.5
+      maximum: 50
+      description: Delivery or service radius in km. The limits match @workspace/geo.
+
+    Latitude:
+      type: number
+      minimum: -90
+      maximum: 90
+
+    Longitude:
+      type: number
+      minimum: -180
+      maximum: 180
 
     UpdateProviderRequest:
       type: object
@@ -1187,9 +1207,12 @@ components:
         openingHours:
           type: string
           maxLength: 100
-        deliveryRadius:
-          type: string
-          maxLength: 50
+        deliveryRadiusKm:
+          $ref: "#/components/schemas/DeliveryRadiusKm"
+        lat:
+          $ref: "#/components/schemas/Latitude"
+        lng:
+          $ref: "#/components/schemas/Longitude"
         avatarUrl:
           type: string
         coverUrl:

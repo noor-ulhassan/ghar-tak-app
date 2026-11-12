@@ -5,33 +5,30 @@ import { CreateProviderBody, UpdateMyProviderBody } from "@workspace/api-zod";
 import { parseBody } from "../lib/validation";
 import { requireAuth } from "./auth";
 import { categoryMatchTerms } from "./categories";
+import { providerJson } from "../lib/provider-json";
 
 const router: IRouter = Router();
 
-function mapProvider(p: any, isFavorite = false) {
+/**
+ * The map point and radius from a create or edit request, as the database stores them.
+ * A point needs both lat and lng: half of one would put the shop in the wrong place,
+ * so that gets a 400 and undefined back.
+ */
+function locationFields(
+  body: { lat?: number; lng?: number; deliveryRadiusKm?: number },
+  res: Response,
+): { lat?: string; lng?: string; deliveryRadiusKm?: string } | undefined {
+  if ((body.lat === undefined) !== (body.lng === undefined)) {
+    const missing = body.lat === undefined ? "lat" : "lng";
+    res.status(400).json({
+      error: "Invalid request",
+      fields: [{ field: missing, message: "Send lat and lng together" }],
+    });
+    return undefined;
+  }
   return {
-    id: p.id,
-    userId: p.userId,
-    name: p.name,
-    type: p.type,
-    description: p.description ?? null,
-    address: p.address ?? null,
-    phone: p.phone ?? null,
-    email: p.email ?? null,
-    avatarUrl: p.avatarUrl ?? null,
-    coverUrl: p.coverUrl ?? null,
-    isOpen: p.isOpen ?? true,
-    openingHours: p.openingHours ?? null,
-    deliveryRadius: p.deliveryRadius ?? null,
-    lat: p.lat ? Number(p.lat) : null,
-    lng: p.lng ? Number(p.lng) : null,
-    rating: Number(p.rating ?? 0),
-    reviewCount: p.reviewCount ?? 0,
-    isFavorite,
-    planId: p.planId ?? null,
-    category: p.category ?? null,
-    isVerified: p.isVerified ?? false,
-    createdAt: p.createdAt.toISOString(),
+    ...(body.lat === undefined ? {} : { lat: String(body.lat), lng: String(body.lng) }),
+    ...(body.deliveryRadiusKm === undefined ? {} : { deliveryRadiusKm: String(body.deliveryRadiusKm) }),
   };
 }
 
@@ -61,7 +58,7 @@ router.get("/providers", async (req: Request, res: Response) => {
       ? await db.select().from(providersTable).where(and(...conditions))
       : await db.select().from(providersTable);
 
-    res.json(rows.map((p) => mapProvider(p)));
+    res.json(rows.map((p) => providerJson(p)));
   } catch (err) {
     req.log.error({ err }, "GET /providers error");
     res.status(500).json({ error: "Internal server error" });
@@ -73,6 +70,8 @@ router.post("/providers", requireAuth, async (req: Request, res: Response) => {
   const clerkUserId = (req as any).clerkUserId as string;
   const body = parseBody(CreateProviderBody, req, res);
   if (!body) return;
+  const location = locationFields(body, res);
+  if (!location) return;
 
   try {
     // Check if user already has a provider
@@ -99,12 +98,12 @@ router.post("/providers", requireAuth, async (req: Request, res: Response) => {
         email: body.email ?? null,
         category: body.category ?? null,
         openingHours: body.openingHours ?? null,
-        deliveryRadius: body.deliveryRadius ?? null,
+        ...location,
         planId: "starter",
       })
       .returning();
 
-    res.status(201).json(mapProvider(provider));
+    res.status(201).json(providerJson(provider));
   } catch (err) {
     req.log.error({ err }, "POST /providers error");
     res.status(500).json({ error: "Internal server error" });
@@ -125,7 +124,7 @@ router.get("/providers/me", requireAuth, async (req: Request, res: Response) => 
       res.status(404).json({ error: "No provider profile found" });
       return;
     }
-    res.json(mapProvider(provider));
+    res.json(providerJson(provider));
   } catch (err) {
     req.log.error({ err }, "GET /providers/me error");
     res.status(500).json({ error: "Internal server error" });
@@ -138,11 +137,14 @@ router.patch("/providers/me", requireAuth, async (req: Request, res: Response) =
   // Only the fields an owner may edit get through; rating, verification, plan and owner are dropped.
   const body = parseBody(UpdateMyProviderBody, req, res);
   if (!body) return;
+  const location = locationFields(body, res);
+  if (!location) return;
+  const { lat: _lat, lng: _lng, deliveryRadiusKm: _radius, ...details } = body;
 
   try {
     const [provider] = await db
       .update(providersTable)
-      .set({ ...body, updatedAt: new Date() })
+      .set({ ...details, ...location, updatedAt: new Date() })
       .where(eq(providersTable.userId, clerkUserId))
       .returning();
 
@@ -150,7 +152,7 @@ router.patch("/providers/me", requireAuth, async (req: Request, res: Response) =
       res.status(404).json({ error: "Provider not found" });
       return;
     }
-    res.json(mapProvider(provider));
+    res.json(providerJson(provider));
   } catch (err) {
     req.log.error({ err }, "PATCH /providers/me error");
     res.status(500).json({ error: "Internal server error" });
@@ -341,7 +343,7 @@ router.get("/providers/:providerId", async (req: Request, res: Response) => {
       res.status(404).json({ error: "Provider not found" });
       return;
     }
-    res.json(mapProvider(provider));
+    res.json(providerJson(provider));
   } catch (err) {
     req.log.error({ err }, "GET /providers/:id error");
     res.status(500).json({ error: "Internal server error" });

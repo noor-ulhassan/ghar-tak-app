@@ -18,7 +18,10 @@ export const providersTable = pgTable(
     coverUrl: text("cover_url"),
     isOpen: boolean("is_open").notNull().default(true),
     openingHours: varchar("opening_hours", { length: 100 }),
+    // Old free text ("5 km"), replaced by delivery_radius_km and no longer read or written.
+    // Kept until every database has been through backfill-delivery-radius.
     deliveryRadius: varchar("delivery_radius", { length: 50 }),
+    deliveryRadiusKm: numeric("delivery_radius_km", { precision: 4, scale: 1 }),
     lat: numeric("lat", { precision: 10, scale: 7 }),
     lng: numeric("lng", { precision: 10, scale: 7 }),
     rating: numeric("rating", { precision: 3, scale: 2 }).notNull().default("0"),

@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, providersTable, productsTable, servicesTable } from "@workspace/db";
 import { and, eq, ilike, or } from "drizzle-orm";
+import { providerJson } from "../lib/provider-json";
 
 const router: IRouter = Router();
 
@@ -70,29 +71,7 @@ router.get("/search", async (req: Request, res: Response) => {
     }
 
     res.json({
-      providers: providers.map((p) => ({
-        id: p.id,
-        userId: p.userId,
-        name: p.name,
-        type: p.type,
-        description: p.description ?? null,
-        address: p.address ?? null,
-        phone: p.phone ?? null,
-        email: p.email ?? null,
-        avatarUrl: p.avatarUrl ?? null,
-        coverUrl: p.coverUrl ?? null,
-        isOpen: p.isOpen ?? true,
-        openingHours: p.openingHours ?? null,
-        deliveryRadius: p.deliveryRadius ?? null,
-        lat: p.lat ? Number(p.lat) : null,
-        lng: p.lng ? Number(p.lng) : null,
-        rating: Number(p.rating ?? 0),
-        reviewCount: p.reviewCount ?? 0,
-        isFavorite: false,
-        planId: p.planId ?? null,
-        category: p.category ?? null,
-        createdAt: p.createdAt.toISOString(),
-      })),
+      providers: providers.map((p) => providerJson(p)),
       products: products.map((p) => ({
         id: p.id,
         providerId: p.providerId,

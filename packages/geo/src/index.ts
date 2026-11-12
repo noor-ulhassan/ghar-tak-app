@@ -3,7 +3,12 @@ export interface Coords {
   lng: number;
 }
 
-const EARTH_RADIUS_KM = 6371;
+export const EARTH_RADIUS_KM = 6371;
+
+// A shop that hasn't set its delivery radius is treated as delivering this far.
+export const DEFAULT_DELIVERY_RADIUS_KM = 5;
+export const MIN_DELIVERY_RADIUS_KM = 0.5;
+export const MAX_DELIVERY_RADIUS_KM = 50;
 
 function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;

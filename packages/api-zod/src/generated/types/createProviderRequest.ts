@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.2.0
  */
 import type { CreateProviderRequestType } from './createProviderRequestType';
+import type { DeliveryRadiusKm } from './deliveryRadiusKm';
+import type { Latitude } from './latitude';
+import type { Longitude } from './longitude';
 
 export interface CreateProviderRequest {
   /**
@@ -25,6 +28,7 @@ export interface CreateProviderRequest {
   category?: string;
   /** @maxLength 100 */
   openingHours?: string;
-  /** @maxLength 50 */
-  deliveryRadius?: string;
+  deliveryRadiusKm?: DeliveryRadiusKm;
+  lat?: Latitude;
+  lng?: Longitude;
 }

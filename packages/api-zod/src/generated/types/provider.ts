@@ -27,8 +27,11 @@ export interface Provider {
   isOpen: boolean;
   /** @nullable */
   openingHours?: string | null;
-  /** @nullable */
-  deliveryRadius?: string | null;
+  /**
+     * How far the provider delivers or travels, in km in a straight line. Null means the default (5 km).
+     * @nullable
+     */
+  deliveryRadiusKm?: number | null;
   /** @nullable */
   lat?: number | null;
   /** @nullable */
