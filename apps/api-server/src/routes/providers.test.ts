@@ -320,6 +320,8 @@ describe("copying the old delivery radius text", () => {
     const first = await backfillDeliveryRadius();
     expect(first.updated).toBe(3);
     expect(first.skipped.map((row) => row.name)).toEqual(["d", "e", "f"]);
+    // "h" was saved as 3 km while its old text says 9 km.
+    expect(first.differing.map((row) => [row.name, Number(row.km)])).toEqual([["h", 3]]);
 
     const rows = await db
       .select({ name: providersTable.name, km: providersTable.deliveryRadiusKm })
