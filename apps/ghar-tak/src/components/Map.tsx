@@ -4,37 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
-
-function loadGoogleMapsScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof window.google !== 'undefined' && window.google.maps) {
-      resolve();
-      return;
-    }
-    if (!GOOGLE_MAPS_API_KEY) {
-      reject(new Error('VITE_GOOGLE_MAPS_API_KEY is not set'));
-      return;
-    }
-    const existing = document.getElementById('google-maps-script');
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Google Maps script failed to load')));
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Google Maps script failed to load'));
-    document.head.appendChild(script);
-  });
-}
-
-type MapsWindow = Window & { gm_authFailure?: () => void };
+import { googleMapsKeyRejected, hasGoogleMapsKey, loadGoogleMaps, onGoogleMapsKeyRejected } from '@/lib/googleMaps';
 
 // Google reports a rejected key only once per page load, so a setup failure is
 // remembered here; coming back to the home page must not show the map again.
@@ -155,14 +125,12 @@ const NearbyMap = () => {
   };
 
   useEffect(() => {
-    // Google calls this when it rejects the key (wrong key, blocked domain, no
-    // billing). Without it, Google draws its own error box inside the map.
-    const mapsWindow = window as MapsWindow;
-    const onAuthFailure = () => hideMap('Google Maps rejected the API key');
-    mapsWindow.gm_authFailure = onAuthFailure;
+    // Google rejects the key for a wrong key, a blocked domain or no billing.
+    // Without this, Google draws its own error box inside the map.
+    const stopListening = onGoogleMapsKeyRejected(() => hideMap('Google Maps rejected the API key'));
 
     setIsLoadingMap(true);
-    loadGoogleMapsScript()
+    loadGoogleMaps()
       .then(() => {
         initializeMap();
       })
@@ -173,9 +141,7 @@ const NearbyMap = () => {
         hideMap(msg);
       });
 
-    return () => {
-      if (mapsWindow.gm_authFailure === onAuthFailure) delete mapsWindow.gm_authFailure;
-    };
+    return stopListening;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -334,6 +300,6 @@ const NearbyMap = () => {
 };
 
 /** Without a Google Maps key the map has nothing to show, so the home page leaves it out. */
-const Map = () => (GOOGLE_MAPS_API_KEY && !mapSetupFailed ? <NearbyMap /> : null);
+const Map = () => (hasGoogleMapsKey && !mapSetupFailed && !googleMapsKeyRejected() ? <NearbyMap /> : null);
 
 export default Map;

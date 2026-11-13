@@ -1,14 +1,27 @@
-import 'leaflet/dist/leaflet.css';
-import * as L from 'leaflet';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Loader2, LocateFixed, MapPin } from 'lucide-react';
 import type { Coords } from '@workspace/geo';
 import { Button } from '@/components/ui/button';
+import GoogleMapSurface from '@/components/shared/GoogleMapSurface';
+import type { MapSurfaceHandle, MapSurfaceProps } from '@/components/shared/mapSurface';
+import { googleMapsKeyRejected, hasGoogleMapsKey } from '@/lib/googleMaps';
+
+// The OpenStreetMap library is only downloaded when Google Maps can't be used.
+const OsmMapSurface = lazy(() => import('@/components/shared/OsmMapSurface'));
 
 // Where the map opens when there is no pin yet and no better guess.
 const LAHORE: Coords = { lat: 31.5204, lng: 74.3587 };
-// 7 decimals is what the database keeps (about 1 cm).
-const round7 = (value: number) => Math.round(value * 1e7) / 1e7;
+
+/**
+ * As the database keeps it: 7 decimals (about 1 cm), and the longitude wrapped into
+ * -180..180 (dragging past the edge of the world shows another copy of it).
+ */
+function clean(point: Coords): Coords {
+  const lng = ((((point.lng + 180) % 360) + 360) % 360) - 180;
+  return { lat: Math.round(point.lat * 1e7) / 1e7, lng: Math.round(lng * 1e7) / 1e7 };
+}
+
+const samePoint = (a: Coords, b: Coords) => a.lat === b.lat && a.lng === b.lng;
 
 interface LocationPickerProps {
   /** The chosen point, or null while nothing has been chosen. */
@@ -25,96 +38,82 @@ interface LocationPickerProps {
 /**
  * A map with a fixed pin in the middle: the person drags the map until the pin sits on the
  * right spot. Nothing is chosen until they drag it (or pan with the arrow keys) or use their
- * current location, so an untouched map never saves the place it happened to open at.
- * Zooming always keeps the pin where it is, and the scroll wheel only zooms once the map has
- * been clicked, so scrolling the page past the map changes nothing.
+ * current location, so an untouched map never saves the place it happened to open at, and
+ * scrolling the page past the map changes nothing. Google Maps when a working key is set,
+ * otherwise OpenStreetMap.
  */
 export default function LocationPicker({ value, onChange, openAt, jumpTo, onLocate }: LocationPickerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
+  const [engine, setEngine] = useState<'google' | 'osm'>(() =>
+    hasGoogleMapsKey && !googleMapsKeyRejected() ? 'google' : 'osm',
+  );
+  const handleRef = useRef<MapSurfaceHandle | null>(null);
   const touchedRef = useRef(value !== null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onLocateRef = useRef(onLocate);
   onLocateRef.current = onLocate;
-  // The last point this map reported, to tell its own changes from ones made outside.
+  // The last point this picker reported, to tell its own changes from ones made outside.
   const reportedRef = useRef<Coords | null>(value);
+  // A city jump asked for before the map was ready.
+  const pendingJumpRef = useRef<{ point: Coords; zoom: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
   const report = (point: Coords) => {
     reportedRef.current = point;
     onChangeRef.current(point);
   };
-  const [locating, setLocating] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const start = value ?? openAt ?? LAHORE;
-    const map = L.map(container, {
-      center: [start.lat, start.lng],
-      zoom: value ? 17 : 13,
-      // Every kind of zoom keeps the middle, where the pin is, in place.
-      scrollWheelZoom: 'center',
-      doubleClickZoom: 'center',
-      touchZoom: 'center',
-    });
-    mapRef.current = map;
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
-    }).addTo(map);
-
-    // The wheel zooms only while the map has focus, so it doesn't catch page scrolling.
-    map.scrollWheelZoom.disable();
-    map.on('focus', () => map.scrollWheelZoom.enable());
-    map.on('blur', () => map.scrollWheelZoom.disable());
-
-    const choose = () => {
-      // Dragging past the edge of the world shows another copy of it; wrap back to -180..180.
-      const center = map.getCenter().wrap();
-      report({ lat: round7(center.lat), lng: round7(center.lng) });
-    };
-    const touch = () => {
+  const surfaceProps: MapSurfaceProps = {
+    start: { point: value ?? openAt ?? LAHORE, zoom: value ? 17 : 13 },
+    onUserMove: () => {
       touchedRef.current = true;
-    };
-    const touchOnArrowKey = (event: KeyboardEvent) => {
-      if (event.key.startsWith('Arrow')) touch();
-    };
-    map.on('dragstart', touch);
-    container.addEventListener('keydown', touchOnArrowKey);
-    map.on('moveend', () => {
-      if (touchedRef.current) choose();
-    });
-
-    // Dialogs animate in, so the map can start at the wrong size.
-    const resize = new ResizeObserver(() => map.invalidateSize());
-    resize.observe(container);
-
-    return () => {
-      resize.disconnect();
-      container.removeEventListener('keydown', touchOnArrowKey);
-      map.remove();
-      mapRef.current = null;
-    };
-    // The map is built once; the effects below move it.
-  }, []);
+    },
+    onMoveEnd: (center) => {
+      if (touchedRef.current) report(clean(center));
+    },
+    onReady: (handle) => {
+      handleRef.current = handle;
+      if (!handle) return;
+      // The map opened on the current point, so that point counts as chosen.
+      const current = valueRef.current;
+      if (current) {
+        touchedRef.current = true;
+        reportedRef.current = current;
+      }
+      const jump = pendingJumpRef.current;
+      pendingJumpRef.current = null;
+      if (jump) {
+        touchedRef.current = true;
+        handle.moveTo(jump.point, jump.zoom);
+        report(clean(jump.point));
+      }
+    },
+    onUnavailable: () => setEngine('osm'),
+  };
 
   // A point set from outside (a form filling in a saved shop, say) moves the map to it.
   useEffect(() => {
-    const map = mapRef.current;
+    const handle = handleRef.current;
     const reported = reportedRef.current;
-    if (!map || !value || (reported && reported.lat === value.lat && reported.lng === value.lng)) return;
+    if (!handle || !value || (reported && samePoint(reported, value))) return;
     reportedRef.current = value;
     touchedRef.current = true;
-    map.setView([value.lat, value.lng], Math.max(map.getZoom(), 17));
+    handle.moveTo(value, Math.max(handle.zoom(), 17));
   }, [value]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !jumpTo) return;
+    if (!jumpTo) return;
+    const handle = handleRef.current;
+    if (!handle) {
+      pendingJumpRef.current = jumpTo;
+      return;
+    }
     touchedRef.current = true;
-    map.setView([jumpTo.point.lat, jumpTo.point.lng], jumpTo.zoom);
-    report({ lat: round7(jumpTo.point.lat), lng: round7(jumpTo.point.lng) });
+    handle.moveTo(jumpTo.point, jumpTo.zoom);
+    report(clean(jumpTo.point));
   }, [jumpTo]);
 
   const useCurrentLocation = () => {
@@ -127,12 +126,10 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
-        const map = mapRef.current;
-        if (!map) return;
-        const point = { lat: round7(position.coords.latitude), lng: round7(position.coords.longitude) };
+        const point = clean({ lat: position.coords.latitude, lng: position.coords.longitude });
         const metres = Math.round(position.coords.accuracy);
         touchedRef.current = true;
-        map.setView([point.lat, point.lng], 18);
+        handleRef.current?.moveTo(point, 18);
         report(point);
         onLocateRef.current?.(point, metres);
         setNote(
@@ -156,13 +153,13 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
   return (
     <div className="space-y-2">
       <div className="relative isolate h-72 overflow-hidden rounded-md border">
-        <div
-          ref={containerRef}
-          className="h-full w-full"
-          role="application"
-          aria-label="Map. Move it until the pin in the middle sits on the right spot."
-          tabIndex={0}
-        />
+        {engine === 'google' ? (
+          <GoogleMapSurface {...surfaceProps} />
+        ) : (
+          <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
+            <OsmMapSurface {...surfaceProps} />
+          </Suspense>
+        )}
         <MapPin
           className="pointer-events-none absolute left-1/2 top-1/2 z-[500] h-9 w-9 -translate-x-1/2 -translate-y-full fill-primary text-primary-foreground drop-shadow"
           aria-hidden="true"
