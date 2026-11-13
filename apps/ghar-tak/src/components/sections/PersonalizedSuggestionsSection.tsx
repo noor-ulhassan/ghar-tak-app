@@ -13,10 +13,15 @@ import { sortByDistance } from '@workspace/geo';
 
 const NEAREST_STORES = 3;
 const MAX_PRODUCTS_PER_STORE = 8;
+// The suggestions service passes the location on to OpenAI: 2 decimals (about 1 km) is
+// enough to suggest local products and says less about where the customer lives.
+const roundForAi = (value: number) => Math.round(value * 100) / 100;
 
 export default function PersonalizedSuggestionsSection() {
   const { user, isLoaded } = useUser();
-  const { location } = useLocation();
+  // Wait until the location is known or given up on (at most about 10 s), so the paid
+  // suggestions are asked for once, not once before the location and again after it.
+  const { loading: locating } = useLocation();
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +58,10 @@ export default function PersonalizedSuggestionsSection() {
   });
 
   const isLoadingContext =
-    storesLoading || ordersLoading || products1Loading || products2Loading || products3Loading;
+    locating || storesLoading || ordersLoading || products1Loading || products2Loading || products3Loading;
+
+  const aiLat = point ? roundForAi(point.lat) : null;
+  const aiLng = point ? roundForAi(point.lng) : null;
 
   const recommendationInput = useMemo<PersonalizedProductRecommendationsInput>(() => {
     const productLists = [products1, products2, products3];
@@ -73,11 +81,11 @@ export default function PersonalizedSuggestionsSection() {
     ).slice(0, 10);
 
     const input: PersonalizedProductRecommendationsInput = {};
-    if (location) input.userLocation = { latitude: location.lat, longitude: location.lng };
+    if (aiLat !== null && aiLng !== null) input.userLocation = { latitude: aiLat, longitude: aiLng };
     if (pastPurchases.length) input.pastPurchases = pastPurchases;
     if (nearbyStores.length) input.nearbyStores = nearbyStores;
     return input;
-  }, [nearestStores, products1, products2, products3, orders, location]);
+  }, [nearestStores, products1, products2, products3, orders, aiLat, aiLng]);
 
   useEffect(() => {
     if (!isLoaded) return;

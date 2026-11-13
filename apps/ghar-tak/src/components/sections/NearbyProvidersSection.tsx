@@ -7,6 +7,7 @@ import { Link } from 'wouter';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import type { Provider } from '@workspace/api-client-react';
 import { NoneNearby } from '@/components/shared/NearbyScope';
+import LoadError from '@/components/shared/LoadError';
 import { useNearbyFilter } from '@/hooks/useNearby';
 import { providerDistance, sortByDistance } from '@workspace/geo';
 
@@ -15,29 +16,40 @@ const SORTED_ITEMS_COUNT = 3;
 export default function NearbyProvidersSection() {
   // With a precise location the server sends only the providers that reach it, nearest first.
   // With a rough one everything is listed, nearest first by that rough location.
-  const { point, filterPoint } = useNearbyFilter();
+  const { point, filterPoint, approximate } = useNearbyFilter();
   const storeParams = filterPoint ?? {};
   const serviceParams = { type: 'service' as const, ...filterPoint };
   // Restaurants are listed with the stores (they sell through the same store page).
-  const { data: allProviders, isLoading: storesLoading } = useListProviders(storeParams, { query: { queryKey: getListProvidersQueryKey(storeParams) } });
+  const storesQuery = useListProviders(storeParams, { query: { queryKey: getListProvidersQueryKey(storeParams) } });
+  const allProviders = storesQuery.data;
   const stores = (Array.isArray(allProviders) ? allProviders : []).filter((p) => p.type !== 'service');
-  const { data: services, isLoading: servicesLoading } = useListProviders(serviceParams, { query: { queryKey: getListProvidersQueryKey(serviceParams) } });
+  const servicesQuery = useListProviders(serviceParams, { query: { queryKey: getListProvidersQueryKey(serviceParams) } });
+  const services = servicesQuery.data;
 
   const nearestFirst = (list: Provider[]) => (filterPoint ? list : sortByDistance(list, point));
   const sortedStores = nearestFirst(stores).slice(0, SORTED_ITEMS_COUNT);
   const sortedServiceProviders = nearestFirst(Array.isArray(services) ? services : []).slice(0, SORTED_ITEMS_COUNT);
 
   const renderContent = (
-    isLoading: boolean,
+    query: typeof storesQuery,
     items: Provider[],
     type: 'store' | 'service'
   ) => {
-    if (isLoading) {
+    if (query.isLoading) {
       return (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2 text-muted-foreground">Finding closest providers...</p>
         </div>
+      );
+    }
+    if (query.isError && !query.data) {
+      return (
+        <LoadError
+          what={type === 'store' ? 'stores' : 'service providers'}
+          retrying={query.isFetching}
+          onRetry={() => void query.refetch()}
+        />
       );
     }
     if (items.length === 0) {
@@ -56,8 +68,8 @@ export default function NearbyProvidersSection() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((item) => (
           type === 'store'
-            ? <StoreCard key={item.id} store={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} />
-            : <ServiceCard key={item.id} serviceProvider={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} />
+            ? <StoreCard key={item.id} store={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} approximate={approximate} />
+            : <ServiceCard key={item.id} serviceProvider={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} approximate={approximate} />
         ))}
       </div>
     );
@@ -75,7 +87,7 @@ export default function NearbyProvidersSection() {
         </div>
 
         <TabsContent value="stores">
-          {renderContent(storesLoading, sortedStores, 'store')}
+          {renderContent(storesQuery, sortedStores, 'store')}
           {(stores?.length || 0) > SORTED_ITEMS_COUNT && (
             <div className="text-center mt-8">
               <Button asChild variant="outline">
@@ -88,7 +100,7 @@ export default function NearbyProvidersSection() {
         </TabsContent>
 
         <TabsContent value="services">
-          {renderContent(servicesLoading, sortedServiceProviders, 'service')}
+          {renderContent(servicesQuery, sortedServiceProviders, 'service')}
           {(services?.length || 0) > SORTED_ITEMS_COUNT && (
             <div className="text-center mt-8">
               <Button asChild variant="outline">

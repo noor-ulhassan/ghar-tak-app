@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import LocationChooser from '@/components/shared/LocationChooser';
+import { useLocationChooser } from '@/components/shared/LocationChooser';
+import { useLocation } from '@/hooks/useLocation';
 
 /**
  * The line under a list's title that switches between "near me" and "all". With an
@@ -9,16 +9,18 @@ import LocationChooser from '@/components/shared/LocationChooser';
  * and the customer is asked to pin their location.
  */
 export function NearbyScopeSwitch({ path, showAll, approximate = false }: { path: string; showAll: boolean; approximate?: boolean }) {
-  const [choosing, setChoosing] = useState(false);
+  const { place } = useLocation();
+  const { openLocationChooser } = useLocationChooser();
   if (approximate) {
     return (
       <p className="text-sm text-amber-700 dark:text-amber-400">
-        Your location is only approximate, so everything is shown, nearest first.{' '}
-        <button type="button" onClick={() => setChoosing(true)} className="text-primary hover:underline">
+        {place
+          ? `You picked ${place}, so everything is shown, nearest first. `
+          : 'Your location is only approximate, so everything is shown, nearest first. '}
+        <button type="button" onClick={openLocationChooser} className="text-primary hover:underline">
           Pin your location
         </button>{' '}
         to see the ones that reach you.
-        <LocationChooser open={choosing} onOpenChange={setChoosing} />
       </p>
     );
   }
@@ -28,13 +30,17 @@ export function NearbyScopeSwitch({ path, showAll, approximate = false }: { path
       <Link href={showAll ? path : `${path}?view=all`} className="text-primary hover:underline">
         {showAll ? 'Show only those near me' : 'Show all'}
       </Link>
+      {' · '}
+      <button type="button" onClick={openLocationChooser} className="text-primary hover:underline">
+        Change location
+      </button>
     </p>
   );
 }
 
 /** What a "near me" list shows when nothing reaches the customer. */
 export function NoneNearby({ message, allHref, allLabel }: { message: string; allHref: string; allLabel: string }) {
-  const [choosing, setChoosing] = useState(false);
+  const { openLocationChooser } = useLocationChooser();
   return (
     <div className="text-center py-10 space-y-4">
       <p className="text-muted-foreground">{message}</p>
@@ -42,9 +48,8 @@ export function NoneNearby({ message, allHref, allLabel }: { message: string; al
         <Button asChild variant="outline">
           <Link href={allHref}>{allLabel}</Link>
         </Button>
-        <Button variant="ghost" onClick={() => setChoosing(true)}>Change my location</Button>
+        <Button variant="ghost" onClick={openLocationChooser}>Change my location</Button>
       </div>
-      <LocationChooser open={choosing} onOpenChange={setChoosing} />
     </div>
   );
 }

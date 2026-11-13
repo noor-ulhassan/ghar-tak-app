@@ -5,15 +5,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { googleMapsKeyRejected, hasGoogleMapsKey, loadGoogleMaps, onGoogleMapsKeyRejected } from '@/lib/googleMaps';
+import { useLocation } from '@/hooks/useLocation';
 
 // Google reports a rejected key only once per page load, so a setup failure is
 // remembered here; coming back to the home page must not show the map again.
 let mapSetupFailed = false;
 
+// Every search is a paid Google Places request, so the keyword is searched once typing pauses.
+const KEYWORD_DELAY_MS = 600;
+
 const NearbyMap = () => {
   const mapRef = useRef<HTMLDivElement | null>(null);
+  // The location the rest of the site uses, pinned or from the device. The site asks the
+  // device itself when nothing is saved, so the map doesn't ask again.
+  const { location: savedLocation } = useLocation();
+  const savedLat = savedLocation?.lat;
+  const savedLng = savedLocation?.lng;
   const [searchQuery, setSearchQuery] = useState('');
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [keyword, setKeyword] = useState('');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(() =>
+    savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null,
+  );
   const [selectedCategory, setSelectedCategory] = useState('store');
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
@@ -62,13 +74,6 @@ const NearbyMap = () => {
         fullscreenControl: false,
       });
       setMap(newMapInstance);
-
-      if (userLocation) {
-        newMapInstance.setCenter(userLocation);
-        newMapInstance.setZoom(14);
-      } else {
-         handleLocationButtonClick(false, newMapInstance); // Attempt to get location on init
-      }
       setIsLoadingMap(false);
 
     } catch (e: any) {
@@ -92,7 +97,7 @@ const NearbyMap = () => {
     }
   };
   
-  const handleLocationButtonClick = (showError = true, currentMapInstance = map) => {
+  const handleLocationButtonClick = () => {
     setIsLoadingMap(true); 
     // Don't clear mapError here if it's a persistent API key issue
     if (navigator.geolocation) {
@@ -103,9 +108,9 @@ const NearbyMap = () => {
             lng: position.coords.longitude,
           };
           setUserLocation(newLocation);
-          if (currentMapInstance) {
-            currentMapInstance.setCenter(newLocation);
-            currentMapInstance.setZoom(14);
+          if (map) {
+            map.setCenter(newLocation);
+            map.setZoom(14);
           }
           if (mapError && !mapError.toLowerCase().includes('api') && !mapError.toLowerCase().includes('billing')) {
             setMapError(null); // Clear transient errors like "Could not get your location"
@@ -114,12 +119,12 @@ const NearbyMap = () => {
         },
         (err) => {
           console.warn('User denied location access or error occurred:', err.message);
-          if(showError) setMapError('Could not get your location. Please enable location services in your browser/OS settings.');
+          setMapError('Could not get your location. Please enable location services in your browser/OS settings.');
           setIsLoadingMap(false);
         }
       );
     } else {
-      if(showError) setMapError('Geolocation is not supported by this browser.');
+      setMapError('Geolocation is not supported by this browser.');
       setIsLoadingMap(false);
     }
   };
@@ -146,14 +151,24 @@ const NearbyMap = () => {
   }, []);
 
 
+  // Centre on the saved location once the map exists, and again whenever it changes.
   useEffect(() => {
-    if (!map || !userLocation) { // Don't search if map or location isn't ready
-      if (map && userLocation === null && !isLoadingMap && !mapError) {
-        // If map is ready but location is not, prompt user or show gentle message.
-        // For now, relies on initial handleLocationButtonClick or manual click.
-      }
-      return;
-    }
+    if (savedLat === undefined || savedLng === undefined) return;
+    const point = { lat: savedLat, lng: savedLng };
+    // The same spot keeps the same object, so it doesn't trigger another places search.
+    setUserLocation((current) => (current?.lat === point.lat && current?.lng === point.lng ? current : point));
+    map?.setCenter(point);
+    map?.setZoom(14);
+  }, [savedLat, savedLng, map]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(searchQuery), KEYWORD_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    // Don't search until there is a map and a location (saved, or from the button).
+    if (!map || !userLocation) return;
     
     // If there's a map initialization error, don't attempt to search for places.
     if (mapError && (mapError.includes('API key') || mapError.includes('Billing') || mapError.includes('activated'))) {
@@ -181,7 +196,7 @@ const NearbyMap = () => {
         location: userLocation,
         radius: 5000, // 5 km radius
         type: selectedCategory, // This should be a supported type string
-        keyword: searchQuery,
+        keyword,
       },
       (places, status) => {
         setIsSearchingPlaces(false);
@@ -204,7 +219,7 @@ const NearbyMap = () => {
             return marker;
           }).filter(marker => marker !== null) as google.maps.Marker[];
           setMarkers(newMarkers);
-          if (newMarkers.length === 0 && searchQuery) {
+          if (newMarkers.length === 0 && keyword) {
              // setMapError(`No results found for "${searchQuery}" in category "${selectedCategory}". Try a broader search.`);
           }
         } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
@@ -221,7 +236,7 @@ const NearbyMap = () => {
       }
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, userLocation, selectedCategory, map]); // mapError was removed from deps to avoid re-triggering search on error set
+  }, [keyword, userLocation, selectedCategory, map]); // mapError was removed from deps to avoid re-triggering search on error set
   
   if (unavailable) return null;
 

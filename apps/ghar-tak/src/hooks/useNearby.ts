@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSearch } from 'wouter';
 import type { Coords } from '@workspace/geo';
-import { ROUGH_ACCURACY_M, useLocation } from '@/hooks/useLocation';
+import { isApproximate, useLocation } from '@/hooks/useLocation';
 
 // About 11 m: a GPS reading that moves a little keeps using the same cached lists.
 const round = (value: number) => Math.round(value * 1e4) / 1e4;
@@ -15,17 +15,17 @@ export function useCustomerPoint(): Coords | null {
 }
 
 /**
- * Whether the "near me" lists can filter by the customer's location. A device reading vaguer
- * than ROUGH_ACCURACY_M (a laptop guessing from its internet connection can be 30 km off)
- * would hide shops that do deliver and show ones that don't, so then the lists show every
- * shop, nearest first, and ask the customer to pin their location instead.
+ * Whether the "near me" lists can filter by the customer's location. An approximate one (a
+ * laptop guessing from its internet connection can be 30 km off, or a picked city) would
+ * hide shops that do deliver and show ones that don't, so then the lists show every shop,
+ * nearest first, and ask the customer to pin their location instead.
  *
  * `point` is for distances and sorting; `filterPoint` is what to ask the server with, or null.
  */
 export function useNearbyFilter() {
   const point = useCustomerPoint();
-  const { source, accuracyM } = useLocation();
-  const approximate = point !== null && source === 'device' && accuracyM !== null && accuracyM > ROUGH_ACCURACY_M;
+  const { accuracyM } = useLocation();
+  const approximate = point !== null && isApproximate(accuracyM);
   return { point, filterPoint: approximate ? null : point, approximate };
 }
 

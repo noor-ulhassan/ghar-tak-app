@@ -2,6 +2,7 @@ import { useListProviders, getListProvidersQueryKey } from '@workspace/api-clien
 import StoreCard from '@/components/shared/StoreCard';
 import SearchInput from '@/components/shared/SearchInput';
 import { NearbyScopeSwitch, NoneNearby } from '@/components/shared/NearbyScope';
+import LoadError from '@/components/shared/LoadError';
 import { ShoppingCart, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNearbyScope } from '@/hooks/useNearby';
@@ -11,7 +12,7 @@ export default function AllStoresPage() {
   const { point, filterPoint, showAll, approximate } = useNearbyScope();
   // With a location the server sends only the stores that deliver there, nearest first.
   const params = filterPoint ?? {};
-  const { data: providers, isLoading } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
+  const { data: providers, isLoading, isError, isFetching, refetch } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
   // Restaurants sell through the same store page, so they are listed with the stores.
   const stores = useMemo(
     () => (Array.isArray(providers) ? providers : []).filter((p) => p.type !== 'service'),
@@ -42,6 +43,8 @@ export default function AllStoresPage() {
         <div className="flex justify-center py-10">
           <Loader2 className="animate-spin text-primary h-8 w-8" />
         </div>
+      ) : isError && !providers ? (
+        <LoadError what="stores" retrying={isFetching} onRetry={() => void refetch()} />
       ) : sortedStores.length === 0 ? (
         filterPoint ? (
           <NoneNearby message="No stores deliver to your location yet." allHref="/stores?view=all" allLabel="Browse all stores" />
@@ -51,7 +54,12 @@ export default function AllStoresPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sortedStores.map((store) => (
-            <StoreCard key={store.id} store={store} distanceKm={store.distanceKm ?? providerDistance(point, store)} />
+            <StoreCard
+              key={store.id}
+              store={store}
+              distanceKm={store.distanceKm ?? providerDistance(point, store)}
+              approximate={approximate}
+            />
           ))}
         </div>
       )}

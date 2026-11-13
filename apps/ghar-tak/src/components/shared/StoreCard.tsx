@@ -10,9 +10,11 @@ import { formatDistance } from '@workspace/geo';
 interface StoreCardProps {
   store: Provider;
   distanceKm?: number | null;
+  /** The customer's location is approximate, so the distance is too. */
+  approximate?: boolean;
 }
 
-export default function StoreCard({ store, distanceKm }: StoreCardProps) {
+export default function StoreCard({ store, distanceKm, approximate = false }: StoreCardProps) {
   const { favouriteIds, toggleFavourite } = useFavorites();
   const isFav = favouriteIds.has(store.id);
 
@@ -59,7 +61,7 @@ export default function StoreCard({ store, distanceKm }: StoreCardProps) {
           {typeof distanceKm === 'number' && (
             <div className="flex items-center">
               <Navigation className="h-3 w-3 mr-1" />
-              <span>{formatDistance(distanceKm)} away</span>
+              <span>{approximate ? 'About ' : ''}{formatDistance(distanceKm)} away</span>
             </div>
           )}
           {store.rating > 0 && (

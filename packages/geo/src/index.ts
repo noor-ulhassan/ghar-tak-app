@@ -26,7 +26,9 @@ export function distanceKm(from: Coords, to: Coords): number {
 export function formatDistance(km: number): string {
   const metres = Math.max(50, Math.round((km * 1000) / 50) * 50);
   if (metres < 1000) return `${metres} m`;
-  return `${km.toFixed(1)} km`;
+  // A tenth of a km means nothing for a shop in another city ("1033.0 km").
+  const tenths = Math.round(km * 10) / 10;
+  return tenths < 100 ? `${tenths.toFixed(1)} km` : `${Math.round(km)} km`;
 }
 
 interface Located {

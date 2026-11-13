@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { DataProvider } from "@/context/DataContext";
 import { CartProvider } from "@/context/CartContext";
 import CartDrawer from "@/components/shared/CartDrawer";
+import { LocationChooserProvider } from "@/components/shared/LocationChooser";
 import { Toaster } from "@/components/ui/toaster";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -278,9 +279,11 @@ function ClerkProviderWithRoutes() {
         <ReturnPathRecorder />
         <DataProvider>
           <CartProvider>
-            <Layout>
-              <Router />
-            </Layout>
+            <LocationChooserProvider>
+              <Layout>
+                <Router />
+              </Layout>
+            </LocationChooserProvider>
             <CartDrawer />
             <Toaster />
           </CartProvider>

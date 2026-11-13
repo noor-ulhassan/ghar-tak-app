@@ -44,8 +44,6 @@ export interface LocationPickerProps {
   openAt?: Coords | null;
   /** Each new object moves the map there and chooses that spot (a city button, say). */
   jumpTo?: { point: Coords; zoom: number } | null;
-  /** Told about each device reading "Use my current location" places, with its accuracy. */
-  onLocate?: (point: Coords, accuracyM: number) => void;
   /** The id of the element that names this map (a form label), for screen readers. */
   labelledBy?: string;
 }
@@ -62,7 +60,6 @@ export default function LocationPicker({
   onChange,
   openAt,
   jumpTo,
-  onLocate,
   labelledBy,
 }: LocationPickerProps) {
   const [engine, setEngine] = useState<'google' | 'osm'>(() =>
@@ -74,8 +71,6 @@ export default function LocationPicker({
   valueRef.current = value;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const onLocateRef = useRef(onLocate);
-  onLocateRef.current = onLocate;
   // The last point this picker reported, to tell its own changes from ones made outside.
   const reportedRef = useRef<Coords | null>(value);
   // How the current point came to be. A placement by the device or a jump sticks, through
@@ -162,7 +157,6 @@ export default function LocationPicker({
         originRef.current = { kind: 'device', accuracyM: metres };
         handleRef.current?.moveTo(point, 18);
         report(point);
-        onLocateRef.current?.(point, metres);
         setNote(
           metres > 100
             ? `Your device only knows this to within about ${metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${metres} m`}. Move the map so the pin sits exactly on the right spot.`

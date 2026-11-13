@@ -1,6 +1,8 @@
 import { Navigation } from 'lucide-react';
 import type { Provider } from '@workspace/api-client-react';
 import { deliveryReach, formatDistance } from '@workspace/geo';
+import { useLocationChooser } from '@/components/shared/LocationChooser';
+import { useLocation } from '@/hooks/useLocation';
 import { useNearbyFilter } from '@/hooks/useNearby';
 
 /**
@@ -9,6 +11,8 @@ import { useNearbyFilter } from '@/hooks/useNearby';
  */
 export default function DeliveryReach({ provider, className = '' }: { provider: Provider; className?: string }) {
   const { point, approximate } = useNearbyFilter();
+  const { place } = useLocation();
+  const { openLocationChooser } = useLocationChooser();
   const reach = deliveryReach(point, provider);
   if (!reach) return null;
 
@@ -19,8 +23,11 @@ export default function DeliveryReach({ provider, className = '' }: { provider: 
       <div className={`flex items-center text-muted-foreground ${className}`}>
         <Navigation className="h-4 w-4 mr-2 flex-shrink-0" />
         <span>
-          About {formatDistance(reach.distanceKm)} away · your location is approximate, so pin it to check{' '}
-          {isService ? 'if it serves you' : 'delivery'}
+          About {formatDistance(reach.distanceKm)} away · {place ? `you picked ${place}` : 'your location is approximate'}.{' '}
+          <button type="button" onClick={openLocationChooser} className="text-primary hover:underline">
+            Pin your location
+          </button>{' '}
+          to check {isService ? 'if it serves you' : 'delivery'}.
         </span>
       </div>
     );

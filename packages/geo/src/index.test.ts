@@ -50,6 +50,12 @@ describe("formatDistance", () => {
   it("shows longer distances in km with one decimal", () => {
     expect(formatDistance(2.34)).toBe("2.3 km");
     expect(formatDistance(12)).toBe("12.0 km");
+    expect(formatDistance(99.94)).toBe("99.9 km");
+  });
+
+  it("shows whole km from 100 km", () => {
+    expect(formatDistance(99.96)).toBe("100 km");
+    expect(formatDistance(1033.04)).toBe("1033 km");
   });
 });
 

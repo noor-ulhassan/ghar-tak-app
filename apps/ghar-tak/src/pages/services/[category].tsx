@@ -2,6 +2,7 @@ import { useListCategories, useListProviders, getListProvidersQueryKey } from '@
 import ServiceCard from '@/components/shared/ServiceCard';
 import StoreCard from '@/components/shared/StoreCard';
 import { NearbyScopeSwitch, NoneNearby } from '@/components/shared/NearbyScope';
+import LoadError from '@/components/shared/LoadError';
 import { Link } from 'wouter';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import SearchInput from '@/components/shared/SearchInput';
@@ -21,7 +22,7 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
   // With a location the server sends only those that reach it, nearest first.
   const { point, filterPoint, showAll, approximate } = useNearbyScope();
   const listParams = { category: params.category, ...filterPoint };
-  const { data: providers, isLoading: providersLoading } = useListProviders(listParams, { query: { enabled: !!params.category, queryKey: getListProvidersQueryKey(listParams) } });
+  const { data: providers, isLoading: providersLoading, isError: providersFailed, isFetching: providersFetching, refetch: refetchProviders } = useListProviders(listParams, { query: { enabled: !!params.category, queryKey: getListProvidersQueryKey(listParams) } });
 
   const sortedProviders = useMemo(() => {
     const list = Array.isArray(providers) ? providers : [];
@@ -65,7 +66,9 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
         </div>
       </div>
 
-      {sortedProviders.length === 0 ? (
+      {providersFailed && !providers ? (
+        <LoadError what={category.name.toLowerCase()} retrying={providersFetching} onRetry={() => void refetchProviders()} />
+      ) : sortedProviders.length === 0 ? (
         filterPoint ? (
           <NoneNearby
             message={`No ${category.name.toLowerCase()} reach your location yet.`}
@@ -80,8 +83,8 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
           {sortedProviders.map((provider) => {
             const distanceKm = provider.distanceKm ?? providerDistance(point, provider);
             return provider.type === 'service'
-              ? <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={distanceKm} />
-              : <StoreCard key={provider.id} store={provider} distanceKm={distanceKm} />;
+              ? <ServiceCard key={provider.id} serviceProvider={provider} distanceKm={distanceKm} approximate={approximate} />
+              : <StoreCard key={provider.id} store={provider} distanceKm={distanceKm} approximate={approximate} />;
           })}
         </div>
       )}

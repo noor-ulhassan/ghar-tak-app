@@ -6,6 +6,7 @@ import { ShoppingBag, Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useNearbyFilter } from '@/hooks/useNearby';
+import LoadError from '@/components/shared/LoadError';
 import { sortByDistance } from '@workspace/geo';
 
 function StoreProducts({ storeId, storeName }: { storeId: string; storeName: string }) {
@@ -42,7 +43,7 @@ export default function ShopByStoreSection() {
   // Restaurants are listed with the stores (they sell through the same store page).
   const { point, filterPoint } = useNearbyFilter();
   const params = filterPoint ?? {};
-  const { data: providers, isLoading: storesLoading } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
+  const { data: providers, isLoading: storesLoading, isError: storesFailed, isFetching: storesFetching, refetch: refetchStores } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
 
   const [selectedStoreId, setSelectedStoreId] = useState('');
 
@@ -67,6 +68,18 @@ export default function ShopByStoreSection() {
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      </section>
+    );
+  }
+
+  if (storesFailed && !providers) {
+    return (
+      <section className="py-8 md:py-12">
+        <div className="flex items-center mb-8">
+          <ShoppingBag className="h-8 w-8 text-primary mr-3" />
+          <h2 className="text-3xl font-headline font-bold">Shop from Nearby Stores</h2>
+        </div>
+        <LoadError what="stores" retrying={storesFetching} onRetry={() => void refetchStores()} />
       </section>
     );
   }
