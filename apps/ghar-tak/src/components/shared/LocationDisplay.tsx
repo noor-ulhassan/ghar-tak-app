@@ -1,7 +1,8 @@
 import { Loader2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLocationChooser } from '@/components/shared/LocationChooser';
-import { isApproximate, useLocation } from '@/hooks/useLocation';
+import { isApproximate } from '@workspace/geo';
+import { useLocation } from '@/hooks/useLocation';
 
 /** The home page line that says which location the lists are for, with a way to change it. */
 export default function LocationDisplay() {

@@ -64,3 +64,26 @@ export function sortByDistance<T extends Located>(items: T[], origin: Coords | n
     return da === db ? 0 : da - db;
   });
 }
+
+// Locations vaguer than this (a computer locating itself by its internet connection, or a
+// picked city) are flagged so the customer can pin the right spot.
+export const ROUGH_ACCURACY_M = 2000;
+
+/** How vague a picked city counts as: enough to sort by, too vague to filter by. */
+export const CITY_ACCURACY_M = 10000;
+
+/** Whether a location is too vague to tell which shops reach it. Null (unknown) is not vague. */
+export function isApproximate(accuracyM: number | null): boolean {
+  return accuracyM !== null && accuracyM > ROUGH_ACCURACY_M;
+}
+
+/** City centres, so a customer can jump the map to their city before pinning their street. */
+export const CITIES: (Coords & { name: string })[] = [
+  { name: 'Lahore', lat: 31.5204, lng: 74.3587 },
+  { name: 'Karachi', lat: 24.8607, lng: 67.0011 },
+  { name: 'Islamabad', lat: 33.6844, lng: 73.0479 },
+  { name: 'Rawalpindi', lat: 33.5651, lng: 73.0169 },
+  { name: 'Faisalabad', lat: 31.4504, lng: 73.135 },
+  { name: 'Multan', lat: 30.1575, lng: 71.5249 },
+  { name: 'Peshawar', lat: 34.0151, lng: 71.5249 },
+];

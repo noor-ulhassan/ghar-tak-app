@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
-import type { Coords } from '@workspace/geo';
+import { CITIES, CITY_ACCURACY_M, type Coords } from '@workspace/geo';
 import LazyLocationPicker from '@/components/shared/LazyLocationPicker';
 import type { PointOrigin } from '@/components/shared/LocationPicker';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CITY_ACCURACY_M, useLocation } from '@/hooks/useLocation';
-import { CITIES } from '@/lib/cities';
+import { useLocation } from '@/hooks/useLocation';
 
 const OpenLocationChooser = createContext<(() => void) | null>(null);
 

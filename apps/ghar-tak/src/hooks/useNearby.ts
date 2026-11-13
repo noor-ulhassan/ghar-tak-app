@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSearch } from 'wouter';
-import type { Coords } from '@workspace/geo';
-import { isApproximate, useLocation } from '@/hooks/useLocation';
+import { isApproximate, type Coords } from '@workspace/geo';
+import { useLocation } from '@/hooks/useLocation';
 
 // About 11 m: a GPS reading that moves a little keeps using the same cached lists.
 const round = (value: number) => Math.round(value * 1e4) / 1e4;

@@ -29,11 +29,6 @@ interface LocationState {
 // After a day a device location may be out of date (the customer moved), so it is refreshed.
 // A spot the customer pinned stays until they change it.
 const MAX_DEVICE_LOCATION_AGE_MS = 24 * 60 * 60 * 1000;
-// Locations vaguer than this (a computer locating itself by its internet connection, or a
-// picked city) are flagged so the customer can pin the right spot.
-export const ROUGH_ACCURACY_M = 2000;
-/** How vague a picked city counts as: enough to sort by, too vague to filter by. */
-export const CITY_ACCURACY_M = 10000;
 // The browser's own timeout doesn't count the time its permission prompt stays open, so a
 // customer who ignores the prompt would wait forever. After this the location counts as
 // unknown; an answer that comes later is still used.
@@ -44,11 +39,6 @@ const LABELS: Record<LocationSource, string> = {
   device: 'Your current location',
   chosen: 'Your pinned location',
 };
-
-/** Whether a location is too vague to tell which shops reach it. */
-export function isApproximate(accuracyM: number | null): boolean {
-  return accuracyM !== null && accuracyM > ROUGH_ACCURACY_M;
-}
 
 /**
  * How the customer got the location they save in the location dialog. A device reading they

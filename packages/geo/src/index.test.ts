@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  CITIES,
+  CITY_ACCURACY_M,
   DEFAULT_DELIVERY_RADIUS_KM,
+  ROUGH_ACCURACY_M,
   deliveryReach,
   distanceKm,
   formatDistance,
+  isApproximate,
   providerDistance,
   sortByDistance,
 } from "./index";
@@ -122,5 +126,32 @@ describe("deliveryReach", () => {
   it("is null when either location is unknown", () => {
     expect(deliveryReach(null, north(1))).toBeNull();
     expect(deliveryReach(point, { lat: null, lng: null })).toBeNull();
+  });
+});
+
+describe("isApproximate", () => {
+  it("is false when the accuracy is unknown", () => {
+    expect(isApproximate(null)).toBe(false);
+  });
+
+  it("treats exactly the rough limit as precise and anything above it as approximate", () => {
+    expect(ROUGH_ACCURACY_M).toBe(2000);
+    expect(isApproximate(2000)).toBe(false);
+    expect(isApproximate(2001)).toBe(true);
+  });
+
+  it("is false for a precise reading and true for a picked city", () => {
+    expect(isApproximate(25)).toBe(false);
+    expect(isApproximate(CITY_ACCURACY_M)).toBe(true);
+  });
+});
+
+describe("CITIES", () => {
+  it("has uniquely named cities with valid coordinates", () => {
+    expect(new Set(CITIES.map((city) => city.name)).size).toBe(CITIES.length);
+    for (const city of CITIES) {
+      expect(Math.abs(city.lat)).toBeLessThanOrEqual(90);
+      expect(Math.abs(city.lng)).toBeLessThanOrEqual(180);
+    }
   });
 });
