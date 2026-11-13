@@ -18,6 +18,9 @@ const colors = {
     destructiveForeground: "#ffffff",
     border: "#e4e4e7",
     input: "#e4e4e7",
+    // The website's location lines: amber when the location is unknown or vague, green when a shop reaches it.
+    warning: "#b45309",
+    success: "#15803d",
   },
   dark: {
     text: "#fafafa",
@@ -38,6 +41,8 @@ const colors = {
     destructiveForeground: "#ffffff",
     border: "#27272a",
     input: "#27272a",
+    warning: "#fbbf24",
+    success: "#4ade80",
   },
   radius: 12,
 };

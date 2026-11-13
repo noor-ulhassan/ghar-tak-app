@@ -1,3 +1,5 @@
+import type { Coords } from "@workspace/geo";
+
 import { apiGet } from "./api";
 import {
   categoryIcon,
@@ -106,13 +108,8 @@ export function isShop(p: { type: ProviderType }) {
   return p.type !== "service";
 }
 
-export async function fetchProviders(): Promise<{ stores: Store[]; serviceProviders: ServiceProvider[] }> {
-  const providers = await apiGet<ApiProvider[]>("/api/providers");
-  const list = Array.isArray(providers) ? providers : [];
-  return {
-    stores: list.filter(isShop).map(toStore),
-    serviceProviders: list.filter((p) => !isShop(p)).map(toServiceProvider),
-  };
+export function fetchProviders(): Promise<{ stores: Store[]; serviceProviders: ServiceProvider[] }> {
+  return fetchProviderList({});
 }
 
 export async function fetchServiceCategories(): Promise<ServiceCategory[]> {
@@ -124,13 +121,21 @@ export async function fetchServiceCategories(): Promise<ServiceCategory[]> {
   }));
 }
 
-/** Every kind of provider in a category; the server also matches its aliases ("Grocery" for groceries). */
-export async function fetchProvidersInCategory(
-  category: string,
+/**
+ * Every kind of provider, optionally in one category (the server also matches its aliases,
+ * "Grocery" for groceries). With `near`, only those whose delivery radius reaches that point,
+ * nearest first. Callers pass the rounded point (hooks/useNearby.ts), never the raw one.
+ */
+export async function fetchProviderList(
+  { category, near }: { category?: string; near?: Coords | null },
   signal?: AbortSignal,
 ): Promise<{ stores: Store[]; serviceProviders: ServiceProvider[] }> {
+  const query = [
+    category ? `category=${encodeURIComponent(category)}` : null,
+    near ? `lat=${near.lat}&lng=${near.lng}` : null,
+  ].filter(Boolean);
   const providers = await apiGet<ApiProvider[]>(
-    `/api/providers?category=${encodeURIComponent(category)}`,
+    query.length ? `/api/providers?${query.join("&")}` : "/api/providers",
     { signal },
   );
   const list = Array.isArray(providers) ? providers : [];

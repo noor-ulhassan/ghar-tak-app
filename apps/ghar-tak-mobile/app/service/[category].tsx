@@ -13,12 +13,24 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LoadError, LoadingBlock } from "@/components/LoadState";
+import { NearbyScopeLine, NoneNearby } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
+import { useNearbyFilter, useShowAll } from "@/hooks/useNearby";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
 import { ApiError } from "@/lib/api";
-import { categoryLabel, deliveryRadiusLabel, openStatusLabel, type ProviderType } from "@/lib/data";
-import { fetchProvidersInCategory } from "@/lib/db";
+import {
+  categoryLabel,
+  deliveryRadiusLabel,
+  distanceLabel,
+  distanceTo,
+  nearestFirst,
+  openStatusLabel,
+  type ProviderType,
+  type ServiceProvider,
+  type Store,
+} from "@/lib/data";
+import { fetchProviderList } from "@/lib/db";
 
 interface Row {
   id: string;
@@ -29,6 +41,7 @@ interface Row {
   address: string;
   detail: string;
   isOpen: boolean;
+  distanceKm: number | null;
 }
 
 export default function ServiceCategoryScreen() {
@@ -42,37 +55,33 @@ export default function ServiceCategoryScreen() {
 
   // Like the website's category page: every kind of provider in the category (Groceries
   // is made up of stores), and the server matches its aliases ("Grocery", "Fashion", ...).
+  // With a precise location the server sends only those that reach it, nearest first.
+  const { showAll, setShowAll } = useShowAll();
+  const { point, filterPoint: nearPoint, approximate } = useNearbyFilter();
+  const filterPoint = showAll ? null : nearPoint;
   const query = useQuery({
-    queryKey: ["providers", "category", category],
-    queryFn: ({ signal }) => fetchProvidersInCategory(category as string, signal),
+    queryKey: ["providers", "category", category, filterPoint?.lat, filterPoint?.lng],
+    queryFn: ({ signal }) => fetchProviderList({ category, near: filterPoint }, signal),
     enabled: !!category,
   });
 
   const rows = useMemo<Row[]>(() => {
     if (!query.data) return [];
-    return [
-      ...query.data.serviceProviders.map((p) => ({
-        id: p.id,
-        type: p.type,
-        name: p.name,
-        description: p.description,
-        rating: p.rating,
-        address: p.location.address,
-        detail: openStatusLabel(p),
-        isOpen: p.isOpen,
-      })),
-      ...query.data.stores.map((s) => ({
-        id: s.id,
-        type: s.type,
-        name: s.name,
-        description: s.description,
-        rating: s.rating,
-        address: s.location.address,
-        detail: deliveryRadiusLabel(s.deliveryRadiusKm),
-        isOpen: s.isOpen,
-      })),
-    ];
-  }, [query.data]);
+    // Both kinds in one list, nearest first when the customer's location is known.
+    const providers: (ServiceProvider | Store)[] = [...query.data.serviceProviders, ...query.data.stores];
+    return nearestFirst(providers, point).map((p) => ({
+      id: p.id,
+      type: p.type,
+      name: p.name,
+      description: p.description,
+      rating: p.rating,
+      address: p.location.address,
+      detail: "serviceCategory" in p ? openStatusLabel(p) : deliveryRadiusLabel(p.deliveryRadiusKm),
+      isOpen: p.isOpen,
+      distanceKm: distanceTo(point, p),
+    }));
+  }, [query.data, point]);
+  const nameLower = (title || "providers").toLowerCase();
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -100,6 +109,7 @@ export default function ServiceCategoryScreen() {
       color: colors.foreground,
       fontFamily: "Inter_700Bold",
     },
+    scope: { paddingHorizontal: 16, paddingTop: 12 },
     list: { padding: 16 },
     card: {
       backgroundColor: colors.card,
@@ -151,7 +161,7 @@ export default function ServiceCategoryScreen() {
 
   const renderBody = () => {
     if (query.isPending && query.fetchStatus !== "idle") {
-      return <LoadingBlock label="Loading providers…" />;
+      return <LoadingBlock label={filterPoint ? `Finding ${nameLower} near you…` : "Loading providers…"} />;
     }
     if (query.isError) {
       return (
@@ -164,6 +174,15 @@ export default function ServiceCategoryScreen() {
       );
     }
     if (rows.length === 0) {
+      if (filterPoint) {
+        return (
+          <NoneNearby
+            message={`No ${nameLower} reach your location yet.`}
+            allLabel={`See all ${nameLower}`}
+            onAll={() => setShowAll(true)}
+          />
+        );
+      }
       return (
         <View style={styles.empty}>
           <Feather name="users" size={40} color={colors.mutedForeground} />
@@ -215,6 +234,12 @@ export default function ServiceCategoryScreen() {
               <Text style={[styles.detail, !item.isOpen && item.type === "service" && styles.detailClosed]}>
                 {item.detail}
               </Text>
+              {item.distanceKm !== null ? (
+                <View style={styles.meta}>
+                  <Feather name="navigation" size={12} color={colors.mutedForeground} />
+                  <Text style={styles.metaMuted}>{distanceLabel(item.distanceKm, approximate)}</Text>
+                </View>
+              ) : null}
             </View>
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
           </Pressable>
@@ -231,6 +256,11 @@ export default function ServiceCategoryScreen() {
         </Pressable>
         <Text style={styles.title}>{title || "Service Providers"}</Text>
       </View>
+      {point ? (
+        <View style={styles.scope}>
+          <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} />
+        </View>
+      ) : null}
       {renderBody()}
     </View>
   );

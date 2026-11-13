@@ -1,4 +1,5 @@
 import type { Feather } from "@expo/vector-icons";
+import { formatDistance, providerDistance, type Coords } from "@workspace/geo";
 import type { ComponentProps } from "react";
 
 // The app's catalogue types. lib/db.ts maps the Ghar Tak API's providers, products,
@@ -78,6 +79,25 @@ export const DEFAULT_DELIVERY_RADIUS_KM = 5;
 
 export function deliveryRadiusLabel(radiusKm: number | null): string {
   return `Delivers within ${radiusKm ?? DEFAULT_DELIVERY_RADIUS_KM} km`;
+}
+
+/** How far the customer is from a provider: the server's figure when the list was asked near them. */
+export function distanceTo(point: Coords | null, provider: Pick<ProviderBase, "location" | "distanceKm">): number | null {
+  return provider.distanceKm ?? providerDistance(point, provider.location);
+}
+
+/** "2.3 km away"; "About 2.3 km away" when the customer's location is approximate. */
+export function distanceLabel(km: number, approximate: boolean): string {
+  return `${approximate ? "About " : ""}${formatDistance(km)} away`;
+}
+
+/** Nearest first; providers without a map point go last, in their original order. */
+export function nearestFirst<T extends ProviderBase>(items: T[], point: Coords | null): T[] {
+  if (!point) return items;
+  return items
+    .map((item) => ({ item, km: providerDistance(point, item.location) ?? Number.POSITIVE_INFINITY }))
+    .sort((a, b) => (a.km === b.km ? 0 : a.km - b.km))
+    .map(({ item }) => item);
 }
 
 /** "Open · Mon-Sat 8am-9pm", "Closed", ... */

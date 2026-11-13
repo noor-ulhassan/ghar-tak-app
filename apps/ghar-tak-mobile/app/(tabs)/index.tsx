@@ -15,10 +15,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CatalogNotice } from "@/components/LoadState";
+import { LocationBanner } from "@/components/LocationBanner";
+import { NearbyScopeLine, NearRequestState, NoneNearby } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
+import { useNearbyCatalog, useShowAll } from "@/hooks/useNearby";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
-import { deliveryRadiusLabel } from "@/lib/data";
+import { deliveryRadiusLabel, distanceLabel, distanceTo } from "@/lib/data";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -26,7 +29,10 @@ export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? 67 : insets.top;
-  const { stores, serviceCategories, refreshing, refresh } = useData();
+  const { serviceCategories } = useData();
+  const { showAll, setShowAll } = useShowAll();
+  const { point, filterPoint, approximate, stores, near, refreshing, refresh } = useNearbyCatalog(showAll);
+  const firstStores = stores.slice(0, 4);
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -108,6 +114,7 @@ export default function HomeScreen() {
       marginTop: 8,
     },
 
+    locationSection: { paddingHorizontal: 16, marginTop: 16 },
     section: { paddingHorizontal: 16, marginTop: 24 },
     sectionHeader: {
       flexDirection: "row",
@@ -318,57 +325,82 @@ export default function HomeScreen() {
           <Text style={styles.poweredBy}>Powered by AI for smarter results.</Text>
         </View>
 
-        {/* Stores (a plain list until the app knows the customer's location) */}
+        <View style={styles.locationSection}>
+          <LocationBanner />
+        </View>
+
+        {/* Stores: those that deliver to the customer once their location is known precisely */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Stores</Text>
-            <Pressable onPress={() => router.push("/(tabs)/stores")}>
+            <Text style={styles.sectionTitle}>{filterPoint ? "Stores near you" : "Stores"}</Text>
+            <Pressable
+              onPress={() => router.push("/(tabs)/stores")}
+              accessibilityRole="button"
+              accessibilityLabel="See all stores"
+            >
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           </View>
-          <CatalogNotice />
+          {point ? <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} /> : null}
+          {filterPoint ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />}
+          {filterPoint && !near.loading && !near.error && firstStores.length === 0 ? (
+            <NoneNearby
+              message="No stores deliver to your location yet."
+              allLabel="Browse all stores"
+              onAll={() => router.push({ pathname: "/(tabs)/stores", params: { view: "all" } })}
+            />
+          ) : null}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {stores.slice(0, 4).map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.storeCard}
-                onPress={() => router.push({ pathname: "/store/[id]", params: { id: item.id } })}
-              >
-                <Image
-                  source={{ uri: item.imageUrl }}
-                  style={styles.storeImage}
-                  contentFit="cover"
-                  transition={150}
-                  cachePolicy="memory-disk"
-                  recyclingKey={item.id}
-                />
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName} numberOfLines={1}>{item.name}</Text>
-                  <View style={styles.storeCatBadge}>
-                    <Text style={styles.storeCatText}>{item.category}</Text>
+            {firstStores.map((item) => {
+              const km = distanceTo(point, item);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.storeCard}
+                  onPress={() => router.push({ pathname: "/store/[id]", params: { id: item.id } })}
+                >
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={styles.storeImage}
+                    contentFit="cover"
+                    transition={150}
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.id}
+                  />
+                  <View style={styles.storeInfo}>
+                    <Text style={styles.storeName} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.storeCatBadge}>
+                      <Text style={styles.storeCatText}>{item.category}</Text>
+                    </View>
+                    <View style={styles.storeMeta}>
+                      {item.rating > 0 && (
+                        <>
+                          <Feather name="star" size={11} color="#f59e0b" />
+                          <Text style={styles.storeMetaText}>{item.rating.toFixed(1)}</Text>
+                        </>
+                      )}
+                      <Feather name="truck" size={11} color={colors.mutedForeground} />
+                      <Text style={styles.storeMetaMuted} numberOfLines={1}>
+                        {deliveryRadiusLabel(item.deliveryRadiusKm)}
+                      </Text>
+                    </View>
+                    {km !== null ? (
+                      <View style={styles.storeMeta}>
+                        <Feather name="navigation" size={11} color={colors.mutedForeground} />
+                        <Text style={styles.storeMetaMuted} numberOfLines={1}>{distanceLabel(km, approximate)}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.viewStoreBtn}>
+                      <Text style={styles.viewStoreBtnText}>View Store</Text>
+                    </View>
                   </View>
-                  <View style={styles.storeMeta}>
-                    {item.rating > 0 && (
-                      <>
-                        <Feather name="star" size={11} color="#f59e0b" />
-                        <Text style={styles.storeMetaText}>{item.rating.toFixed(1)}</Text>
-                      </>
-                    )}
-                    <Feather name="truck" size={11} color={colors.mutedForeground} />
-                    <Text style={styles.storeMetaMuted} numberOfLines={1}>
-                      {deliveryRadiusLabel(item.deliveryRadiusKm)}
-                    </Text>
-                  </View>
-                  <View style={styles.viewStoreBtn}>
-                    <Text style={styles.viewStoreBtnText}>View Store</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
 

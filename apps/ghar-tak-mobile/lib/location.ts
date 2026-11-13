@@ -40,7 +40,8 @@ export interface LocationState {
  * spot, or a city when `place` is given.
  */
 export type ChooseHow =
-  | { source: "device"; accuracyM: number }
+  // Some devices give no accuracy (DeviceFix.accuracyM is null); then it is unknown, not vague.
+  | { source: "device"; accuracyM: number | null }
   | { source: "chosen"; accuracyM?: number | null; place?: string };
 
 export type DeviceFailure = "denied" | "unavailable" | "timeout";

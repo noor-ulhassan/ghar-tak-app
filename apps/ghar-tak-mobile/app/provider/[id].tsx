@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useBookings } from "@/context/BookingsContext";
 import { useData } from "@/context/DataContext";
+import { DeliveryReach } from "@/components/DeliveryReach";
 import { LoadError, LoadingBlock } from "@/components/LoadState";
 import { retryUnlessNotFound, useServiceProvider } from "@/hooks/useProvider";
 import { categoryLabel, openStatusLabel } from "@/lib/data";
@@ -346,6 +347,7 @@ export default function ProviderDetailScreen() {
             <Feather name="clock" size={18} color={provider.isOpen ? "#16a34a" : colors.destructive} />
             <Text style={[styles.infoText, !provider.isOpen && styles.closedText]}>{openStatusLabel(provider)}</Text>
           </View>
+          <DeliveryReach provider={provider} />
 
           <View style={styles.divider} />
 

@@ -15,19 +15,25 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CatalogNotice } from "@/components/LoadState";
+import { NearbyScopeLine, NearRequestState, NoneNearby } from "@/components/NearbyScope";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
 import { useFavorites } from "@/hooks/useFavorites";
-import { deliveryRadiusLabel, openStatusLabel } from "@/lib/data";
+import { useNearbyCatalog, useShowAll } from "@/hooks/useNearby";
+import { deliveryRadiusLabel, distanceLabel, distanceTo, openStatusLabel } from "@/lib/data";
 
 export default function StoresScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const isWeb = Platform.OS === "web";
-  const { stores, ready, refreshing, refresh } = useData();
+  const { ready } = useData();
+  const { showAll, setShowAll } = useShowAll();
+  const { point, filterPoint, approximate, stores, near, refreshing, refresh } = useNearbyCatalog(showAll);
+  // The list itself, or null while a near-me request is loading or has failed.
+  const listReady = filterPoint ? !near.loading && !near.error : ready;
   const { user } = useAuth();
   const { favouriteIds, toggleFavourite } = useFavorites();
 
@@ -186,8 +192,9 @@ export default function StoresScreen() {
           <View style={styles.titleIcon}>
             <Feather name="shopping-bag" size={18} color={colors.primary} />
           </View>
-          <Text style={styles.title}>All Stores</Text>
+          <Text style={styles.title}>{filterPoint ? "Stores near you" : "All Stores"}</Text>
         </View>
+        {point ? <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} /> : null}
         <View style={styles.searchRow}>
           <View style={styles.searchBarWrap}>
             <TextInput
@@ -238,18 +245,25 @@ export default function StoresScreen() {
           />
         }
         extraData={favouriteIds}
-        ListHeaderComponent={<CatalogNotice />}
+        ListHeaderComponent={filterPoint ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />}
         ListEmptyComponent={
-          ready ? (
+          !listReady ? undefined : filterPoint && !query.trim() ? (
+            <NoneNearby
+              message="No stores deliver to your location yet."
+              allLabel="Browse all stores"
+              onAll={() => setShowAll(true)}
+            />
+          ) : (
             <View style={styles.empty}>
               <Feather name="shopping-bag" size={40} color={colors.mutedForeground} />
               <Text style={styles.emptyText}>No stores found</Text>
             </View>
-          ) : undefined
+          )
         }
         ListFooterComponent={<View style={styles.footer} />}
         renderItem={({ item }) => {
           const isFav = favouriteIds.has(item.id);
+          const km = distanceTo(point, item);
           return (
             <Pressable
               style={styles.card}
@@ -302,6 +316,12 @@ export default function StoresScreen() {
                       <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
                     </View>
                   )}
+                  {km !== null ? (
+                    <View style={styles.metaItem}>
+                      <Feather name="navigation" size={13} color={colors.mutedForeground} />
+                      <Text style={styles.metaMuted}>{distanceLabel(km, approximate)}</Text>
+                    </View>
+                  ) : null}
                   <View style={styles.metaItem}>
                     <Feather name="truck" size={13} color={colors.mutedForeground} />
                     <Text style={styles.metaMuted}>{deliveryRadiusLabel(item.deliveryRadiusKm)}</Text>

@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DeliveryReach } from "@/components/DeliveryReach";
 import { LoadError, LoadingBlock } from "@/components/LoadState";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
@@ -385,6 +386,7 @@ export default function StoreDetailScreen() {
                 </View>
               ) : null}
             </View>
+            <DeliveryReach provider={store} />
 
             <Text style={styles.sectionTitle}>Products</Text>
           </View>

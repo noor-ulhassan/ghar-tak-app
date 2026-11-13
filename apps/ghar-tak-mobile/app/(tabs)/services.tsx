@@ -13,16 +13,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CatalogNotice } from "@/components/LoadState";
+import { NearbyScopeLine, NearRequestState, NoneNearby } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
+import { useNearbyCatalog, useShowAll } from "@/hooks/useNearby";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
-import { categoryLabel, openStatusLabel } from "@/lib/data";
+import { categoryLabel, distanceLabel, distanceTo, openStatusLabel } from "@/lib/data";
 
 export default function ServicesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
-  const { serviceCategories, serviceProviders, ready, refreshing, refresh } = useData();
+  const { serviceCategories, ready } = useData();
+  const { showAll, setShowAll } = useShowAll();
+  const { point, filterPoint, approximate, serviceProviders, near, refreshing, refresh } = useNearbyCatalog(showAll);
+  // The list itself, or null while a near-me request is loading or has failed.
+  const listReady = filterPoint ? !near.loading && !near.error : ready;
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -188,52 +194,71 @@ export default function ServicesScreen() {
               ))}
             </View>
 
-            {/* Service providers — the website's Services page lists every type === 'service' provider */}
-            {ready && (
+            {/* Service providers: like the website's Services page, those that reach the customer when it can tell */}
+            {(ready || filterPoint) && (
               <View style={styles.providerSection}>
-                <Text style={styles.sectionTitle}>Service Providers</Text>
+                <Text style={styles.sectionTitle}>
+                  {filterPoint ? "Service Providers Near You" : "Service Providers"}
+                </Text>
+                {point ? <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} /> : null}
               </View>
             )}
+            {filterPoint ? <NearRequestState near={near} what="service providers" /> : null}
           </View>
         }
         ListEmptyComponent={
-          ready ? (
+          !listReady ? undefined : filterPoint ? (
+            <NoneNearby
+              message="No service providers cover your location yet."
+              allLabel="See all service providers"
+              onAll={() => setShowAll(true)}
+            />
+          ) : (
             <Text style={[styles.metaMuted, styles.emptyText]}>No service providers yet.</Text>
-          ) : undefined
+          )
         }
-        renderItem={({ item: p }) => (
-          <Pressable
-            style={styles.provCard}
-            onPress={() =>
-              router.push({ pathname: "/provider/[id]", params: { id: p.id } })
-            }
-          >
-            <View style={styles.provAvatar}>
-              <Feather name="user" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.provInfo}>
-              <Text style={styles.provName} numberOfLines={1}>{p.name}</Text>
-              <Text style={styles.provCat}>
-                {categoryLabel(p.serviceCategory, serviceCategories) || openStatusLabel(p)}
-              </Text>
-              <View style={styles.provMeta}>
-                {p.rating > 0 && (
-                  <>
-                    <Feather name="star" size={12} color="#f59e0b" />
-                    <Text style={styles.metaText}>{p.rating.toFixed(1)}</Text>
-                  </>
-                )}
-                {p.location.address ? (
-                  <>
-                    <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-                    <Text style={styles.metaMuted} numberOfLines={1}>{p.location.address}</Text>
-                  </>
+        renderItem={({ item: p }) => {
+          const km = distanceTo(point, p);
+          return (
+            <Pressable
+              style={styles.provCard}
+              onPress={() =>
+                router.push({ pathname: "/provider/[id]", params: { id: p.id } })
+              }
+            >
+              <View style={styles.provAvatar}>
+                <Feather name="user" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.provInfo}>
+                <Text style={styles.provName} numberOfLines={1}>{p.name}</Text>
+                <Text style={styles.provCat}>
+                  {categoryLabel(p.serviceCategory, serviceCategories) || openStatusLabel(p)}
+                </Text>
+                <View style={styles.provMeta}>
+                  {p.rating > 0 && (
+                    <>
+                      <Feather name="star" size={12} color="#f59e0b" />
+                      <Text style={styles.metaText}>{p.rating.toFixed(1)}</Text>
+                    </>
+                  )}
+                  {p.location.address ? (
+                    <>
+                      <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+                      <Text style={styles.metaMuted} numberOfLines={1}>{p.location.address}</Text>
+                    </>
+                  ) : null}
+                </View>
+                {km !== null ? (
+                  <View style={styles.provMeta}>
+                    <Feather name="navigation" size={12} color={colors.mutedForeground} />
+                    <Text style={styles.metaMuted}>{distanceLabel(km, approximate)}</Text>
+                  </View>
                 ) : null}
               </View>
-            </View>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </Pressable>
-        )}
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          );
+        }}
         ListFooterComponent={<View style={styles.footer} />}
       />
     </View>

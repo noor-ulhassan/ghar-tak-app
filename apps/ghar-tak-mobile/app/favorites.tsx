@@ -8,9 +8,10 @@ import { CatalogNotice } from "@/components/LoadState";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useNearbyFilter } from "@/hooks/useNearby";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
-import { deliveryRadiusLabel } from "@/lib/data";
+import { deliveryRadiusLabel, distanceLabel, distanceTo } from "@/lib/data";
 
 export default function FavoritesScreen() {
   const colors = useColors();
@@ -21,6 +22,8 @@ export default function FavoritesScreen() {
   // The hearts on the Stores tab and store pages save here.
   const { favouriteIds } = useFavorites();
   const favorites = stores.filter((s) => favouriteIds.has(s.id));
+  // Every favourite stays listed, near or far; the distance just helps.
+  const { point, approximate } = useNearbyFilter();
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -104,25 +107,33 @@ export default function FavoritesScreen() {
             </View>
           )
         }
-        renderItem={({ item: store }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() => router.push({ pathname: "/store/[id]", params: { id: store.id } })}
-          >
-            <View style={styles.iconWrap}>
-              <Feather name="heart" size={22} color="#ef4444" />
-            </View>
-            <View style={styles.info}>
-              <Text style={styles.name}>{store.name}</Text>
-              <Text style={styles.meta}>
-                {[store.category, store.rating > 0 ? `${store.rating.toFixed(1)} ★` : null, deliveryRadiusLabel(store.deliveryRadiusKm)]
-                  .filter(Boolean)
-                  .join(" • ")}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </Pressable>
-        )}
+        renderItem={({ item: store }) => {
+          const km = distanceTo(point, store);
+          return (
+            <Pressable
+              style={styles.card}
+              onPress={() => router.push({ pathname: "/store/[id]", params: { id: store.id } })}
+            >
+              <View style={styles.iconWrap}>
+                <Feather name="heart" size={22} color="#ef4444" />
+              </View>
+              <View style={styles.info}>
+                <Text style={styles.name}>{store.name}</Text>
+                <Text style={styles.meta}>
+                  {[
+                    store.category,
+                    store.rating > 0 ? `${store.rating.toFixed(1)} ★` : null,
+                    deliveryRadiusLabel(store.deliveryRadiusKm),
+                    km !== null ? distanceLabel(km, approximate) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          );
+        }}
         ListFooterComponent={<View style={styles.footer} />}
       />
     </View>

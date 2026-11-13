@@ -58,6 +58,8 @@ function RootLayoutNav() {
       <Stack.Screen name="signin" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="simple-page" options={{ headerShown: false }} />
+      {/* No swipe-to-dismiss: a downward drag on the map must move the map, not close the sheet. */}
+      <Stack.Screen name="location" options={{ headerShown: false, presentation: "modal", gestureEnabled: false }} />
     </Stack>
   );
 }

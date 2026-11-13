@@ -16,7 +16,8 @@ import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
 import { CatalogNotice } from "@/components/LoadState";
-import { categoryLabel, deliveryRadiusLabel } from "@/lib/data";
+import { useNearbyFilter } from "@/hooks/useNearby";
+import { categoryLabel, deliveryRadiusLabel, distanceLabel, distanceTo } from "@/lib/data";
 
 interface Result {
   id: string;
@@ -33,10 +34,16 @@ export default function SearchScreen() {
   const isWeb = Platform.OS === "web";
   const [query, setQuery] = useState(q ?? "");
   const { stores, serviceProviders, serviceCategories, ready } = useData();
+  // Search covers every shop, near or far; the distance just helps.
+  const { point, approximate } = useNearbyFilter();
 
   const results = useMemo<Result[]>(() => {
     const term = query.toLowerCase().trim();
     if (!term) return [];
+    const away = (p: (typeof stores)[number] | (typeof serviceProviders)[number]) => {
+      const km = distanceTo(point, p);
+      return km === null ? null : distanceLabel(km, approximate);
+    };
 
     const storeResults: Result[] = stores
       .filter(
@@ -49,7 +56,7 @@ export default function SearchScreen() {
         id: s.id,
         type: "store" as const,
         name: s.name,
-        subtitle: [s.category, deliveryRadiusLabel(s.deliveryRadiusKm)].filter(Boolean).join(" • "),
+        subtitle: [s.category, deliveryRadiusLabel(s.deliveryRadiusKm), away(s)].filter(Boolean).join(" • "),
         icon: "shopping-bag",
       }));
 
@@ -64,14 +71,14 @@ export default function SearchScreen() {
         id: p.id,
         type: "provider" as const,
         name: p.name,
-        subtitle: [categoryLabel(p.serviceCategory, serviceCategories), p.location.address]
+        subtitle: [categoryLabel(p.serviceCategory, serviceCategories), p.location.address, away(p)]
           .filter(Boolean)
           .join(" • "),
         icon: "user",
       }));
 
     return [...storeResults, ...providerResults];
-  }, [query, stores, serviceProviders, serviceCategories]);
+  }, [query, stores, serviceProviders, serviceCategories, point, approximate]);
 
   const handlePress = (item: Result) => {
     if (item.type === "store") {
