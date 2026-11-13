@@ -27,7 +27,7 @@ export default function LocationDisplay() {
     : source === 'chosen'
       ? 'Showing the shops that deliver to the spot you pinned.'
       : rough
-        ? `Your location is only approximate (within about ${roughKm} km). Pin it on the map for a better list.`
+        ? `Your location is only approximate (within about ${roughKm} km), so every shop is shown, nearest first. Pin your location to see the ones that deliver to you.`
         : 'Showing the shops that deliver to your current location.';
 
   return (
@@ -36,7 +36,7 @@ export default function LocationDisplay() {
       <span className={!location || rough ? 'text-amber-700 dark:text-amber-400' : undefined}>{message}</span>
       {error && location && <span className="text-xs">({error})</span>}
       <Button variant="ghost" size="sm" onClick={() => setChoosing(true)} className="text-primary hover:text-primary/80">
-        {location ? 'Change' : 'Set your location'}
+        {!location ? 'Set your location' : rough ? 'Pin your location' : 'Change'}
       </Button>
       <LocationChooser open={choosing} onOpenChange={setChoosing} />
     </div>

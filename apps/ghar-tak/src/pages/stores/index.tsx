@@ -8,7 +8,7 @@ import { useNearbyScope } from '@/hooks/useNearby';
 import { providerDistance, sortByDistance } from '@workspace/geo';
 
 export default function AllStoresPage() {
-  const { point, filterPoint, showAll } = useNearbyScope();
+  const { point, filterPoint, showAll, approximate } = useNearbyScope();
   // With a location the server sends only the stores that deliver there, nearest first.
   const params = filterPoint ?? {};
   const { data: providers, isLoading } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
@@ -31,7 +31,7 @@ export default function AllStoresPage() {
             <ShoppingCart className="h-8 w-8 text-primary mr-3" />
             <h1 className="text-3xl font-bold font-headline">{filterPoint ? 'Stores near you' : 'All Stores'}</h1>
           </div>
-          {point && <NearbyScopeSwitch path="/stores" showAll={showAll} />}
+          {point && <NearbyScopeSwitch path="/stores" showAll={showAll} approximate={approximate} />}
         </div>
         <div className="w-full md:w-1/2 lg:w-1/3">
          <SearchInput placeholder="Search stores..." />

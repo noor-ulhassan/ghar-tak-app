@@ -19,7 +19,7 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
 
   // Every kind of provider: product categories like Groceries are made up of stores.
   // With a location the server sends only those that reach it, nearest first.
-  const { point, filterPoint, showAll } = useNearbyScope();
+  const { point, filterPoint, showAll, approximate } = useNearbyScope();
   const listParams = { category: params.category, ...filterPoint };
   const { data: providers, isLoading: providersLoading } = useListProviders(listParams, { query: { enabled: !!params.category, queryKey: getListProvidersQueryKey(listParams) } });
 
@@ -58,7 +58,7 @@ export default function ServiceCategoryPage({ params }: { params: { category: st
             <Icon className="h-8 w-8 text-primary mr-3" />
             <h1 className="text-3xl font-bold font-headline">{category.name}</h1>
           </div>
-          {point && <NearbyScopeSwitch path={`/services/${params.category}`} showAll={showAll} />}
+          {point && <NearbyScopeSwitch path={`/services/${params.category}`} showAll={showAll} approximate={approximate} />}
         </div>
         <div className="w-full md:w-1/2 lg:w-1/3">
             <SearchInput placeholder={`Search in ${category.name}...`} />

@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { useSearch } from 'wouter';
 import type { Coords } from '@workspace/geo';
-import { useLocation } from '@/hooks/useLocation';
+import { ROUGH_ACCURACY_M, useLocation } from '@/hooks/useLocation';
 
 // About 11 m: a GPS reading that moves a little keeps using the same cached lists.
 const round = (value: number) => Math.round(value * 1e4) / 1e4;
 
-/** Where the customer is, for "near me" lists. Null until a real location is known. */
+/** Where the customer is, for distances. Null until a location is known, however rough. */
 export function useCustomerPoint(): Coords | null {
   const { location, hasRealLocation } = useLocation();
   const lat = hasRealLocation && location ? round(location.lat) : null;
@@ -15,11 +15,23 @@ export function useCustomerPoint(): Coords | null {
 }
 
 /**
- * For pages with a "Show all" switch (?view=all). `filterPoint` is the point to ask the
- * server for, or null to list everything; `point` stays set so distances can still show.
+ * Whether the "near me" lists can filter by the customer's location. A device reading vaguer
+ * than ROUGH_ACCURACY_M (a laptop guessing from its internet connection can be 30 km off)
+ * would hide shops that do deliver and show ones that don't, so then the lists show every
+ * shop, nearest first, and ask the customer to pin their location instead.
+ *
+ * `point` is for distances and sorting; `filterPoint` is what to ask the server with, or null.
  */
-export function useNearbyScope() {
+export function useNearbyFilter() {
   const point = useCustomerPoint();
+  const { source, accuracyM } = useLocation();
+  const approximate = point !== null && source === 'device' && accuracyM !== null && accuracyM > ROUGH_ACCURACY_M;
+  return { point, filterPoint: approximate ? null : point, approximate };
+}
+
+/** useNearbyFilter for pages that also have a "Show all" switch (?view=all). */
+export function useNearbyScope() {
+  const { point, filterPoint, approximate } = useNearbyFilter();
   const showAll = new URLSearchParams(useSearch()).get('view') === 'all';
-  return { point, filterPoint: showAll ? null : point, showAll };
+  return { point, filterPoint: showAll ? null : filterPoint, showAll, approximate };
 }

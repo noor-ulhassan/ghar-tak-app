@@ -5,7 +5,8 @@ import ProductCard from '@/components/shared/ProductCard';
 import { ShoppingBag, Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { useCustomerPoint } from '@/hooks/useNearby';
+import { useNearbyFilter } from '@/hooks/useNearby';
+import { sortByDistance } from '@workspace/geo';
 
 function StoreProducts({ storeId, storeName }: { storeId: string; storeName: string }) {
   const { data: products, isLoading } = useListProviderProducts(storeId, undefined, { query: { enabled: !!storeId, queryKey: ["listProviderProducts", storeId] } });
@@ -36,18 +37,19 @@ function StoreProducts({ storeId, storeName }: { storeId: string; storeName: str
 }
 
 export default function ShopByStoreSection() {
-  // With a location the server sends only the stores that deliver there, nearest first.
+  // With a precise location the server sends only the stores that deliver there, nearest
+  // first; with a rough one every store is listed, nearest first by that rough location.
   // Restaurants are listed with the stores (they sell through the same store page).
-  const point = useCustomerPoint();
-  const params = point ?? {};
+  const { point, filterPoint } = useNearbyFilter();
+  const params = filterPoint ?? {};
   const { data: providers, isLoading: storesLoading } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
 
   const [selectedStoreId, setSelectedStoreId] = useState('');
 
-  const displayedStores = useMemo(
-    () => (Array.isArray(providers) ? providers : []).filter((p) => p.type !== 'service').slice(0, 3),
-    [providers]
-  );
+  const displayedStores = useMemo(() => {
+    const stores = (Array.isArray(providers) ? providers : []).filter((p) => p.type !== 'service');
+    return (filterPoint ? stores : sortByDistance(stores, point)).slice(0, 3);
+  }, [providers, filterPoint, point]);
 
   // When the location arrives the list changes, and the chosen store may drop out of
   // the top three; fall back to the nearest one instead of showing an empty tab.

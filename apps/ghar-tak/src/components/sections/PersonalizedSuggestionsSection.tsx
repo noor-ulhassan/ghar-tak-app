@@ -8,7 +8,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ArrowRight, Loader2, Search } from 'lucide-react';
 import { Link } from 'wouter';
 import { useLocation } from '@/hooks/useLocation';
-import { useCustomerPoint } from '@/hooks/useNearby';
+import { useNearbyFilter } from '@/hooks/useNearby';
+import { sortByDistance } from '@workspace/geo';
 
 const NEAREST_STORES = 3;
 const MAX_PRODUCTS_PER_STORE = 8;
@@ -20,9 +21,10 @@ export default function PersonalizedSuggestionsSection() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // With a location the server sends only the stores that deliver there, nearest first.
-  const point = useCustomerPoint();
-  const storeParams = { type: 'store' as const, ...point };
+  // With a precise location the server sends only the stores that deliver there, nearest
+  // first; with a rough one every store is listed, nearest first by that rough location.
+  const { point, filterPoint } = useNearbyFilter();
+  const storeParams = { type: 'store' as const, ...filterPoint };
   const { data: stores, isLoading: storesLoading } = useListProviders(
     storeParams,
     { query: { queryKey: getListProvidersQueryKey(storeParams) } }
@@ -31,10 +33,10 @@ export default function PersonalizedSuggestionsSection() {
     query: { enabled: !!user, queryKey: ["listMyOrders"] },
   });
 
-  const nearestStores = useMemo(
-    () => (Array.isArray(stores) ? stores : []).slice(0, NEAREST_STORES),
-    [stores]
-  );
+  const nearestStores = useMemo(() => {
+    const list = Array.isArray(stores) ? stores : [];
+    return (filterPoint ? list : sortByDistance(list, point)).slice(0, NEAREST_STORES);
+  }, [stores, filterPoint, point]);
 
   const store1 = nearestStores[0]?.id ?? '';
   const store2 = nearestStores[1]?.id ?? '';

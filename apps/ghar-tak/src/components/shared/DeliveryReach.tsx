@@ -1,14 +1,31 @@
 import { Navigation } from 'lucide-react';
 import type { Provider } from '@workspace/api-client-react';
 import { deliveryReach, formatDistance } from '@workspace/geo';
-import { useCustomerPoint } from '@/hooks/useNearby';
+import { useNearbyFilter } from '@/hooks/useNearby';
 
-/** "2.3 km away · delivers to your location", or that the customer is outside its area. */
+/**
+ * "2.3 km away · delivers to your location", or that the customer is outside its area.
+ * With an approximate location it says so instead of guessing either way.
+ */
 export default function DeliveryReach({ provider, className = '' }: { provider: Provider; className?: string }) {
-  const reach = deliveryReach(useCustomerPoint(), provider);
+  const { point, approximate } = useNearbyFilter();
+  const reach = deliveryReach(point, provider);
   if (!reach) return null;
 
   const isService = provider.type === 'service';
+
+  if (approximate) {
+    return (
+      <div className={`flex items-center text-muted-foreground ${className}`}>
+        <Navigation className="h-4 w-4 mr-2 flex-shrink-0" />
+        <span>
+          About {formatDistance(reach.distanceKm)} away · your location is approximate, so pin it to check{' '}
+          {isService ? 'if it serves you' : 'delivery'}
+        </span>
+      </div>
+    );
+  }
+
   // The distance is rounded for display, so one a little past the edge can read as equal to the radius.
   const justOutside = reach.distanceKm - reach.radiusKm < 0.1;
   const verdict = reach.reaches

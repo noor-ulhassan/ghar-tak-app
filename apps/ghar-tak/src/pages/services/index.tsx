@@ -12,7 +12,7 @@ import { providerDistance, sortByDistance } from '@workspace/geo';
 
 export default function AllServicesPage() {
   const { data: categories, isLoading: categoriesLoading } = useListCategories({ query: { queryKey: ["listCategories"] } });
-  const { point, filterPoint, showAll } = useNearbyScope();
+  const { point, filterPoint, showAll, approximate } = useNearbyScope();
   // With a location the server sends only the providers whose service area covers it, nearest first.
   const params = { type: 'service' as const, ...filterPoint };
   const { data: providers, isLoading: providersLoading } = useListProviders(params, { query: { queryKey: getListProvidersQueryKey(params) } });
@@ -61,7 +61,7 @@ export default function AllServicesPage() {
       <section>
         <div className="mb-6">
           <h2 className="text-2xl font-semibold font-headline">{filterPoint ? 'Service Providers Near You' : 'Featured Service Providers'}</h2>
-          {point && <NearbyScopeSwitch path="/services" showAll={showAll} />}
+          {point && <NearbyScopeSwitch path="/services" showAll={showAll} approximate={approximate} />}
         </div>
         {providersLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>

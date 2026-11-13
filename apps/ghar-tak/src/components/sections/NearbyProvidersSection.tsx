@@ -7,22 +7,25 @@ import { Link } from 'wouter';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import type { Provider } from '@workspace/api-client-react';
 import { NoneNearby } from '@/components/shared/NearbyScope';
-import { useCustomerPoint } from '@/hooks/useNearby';
+import { useNearbyFilter } from '@/hooks/useNearby';
+import { providerDistance, sortByDistance } from '@workspace/geo';
 
 const SORTED_ITEMS_COUNT = 3;
 
 export default function NearbyProvidersSection() {
-  // With a location the server sends only the providers that reach it, nearest first.
-  const point = useCustomerPoint();
-  const storeParams = point ?? {};
-  const serviceParams = { type: 'service' as const, ...point };
+  // With a precise location the server sends only the providers that reach it, nearest first.
+  // With a rough one everything is listed, nearest first by that rough location.
+  const { point, filterPoint } = useNearbyFilter();
+  const storeParams = filterPoint ?? {};
+  const serviceParams = { type: 'service' as const, ...filterPoint };
   // Restaurants are listed with the stores (they sell through the same store page).
   const { data: allProviders, isLoading: storesLoading } = useListProviders(storeParams, { query: { queryKey: getListProvidersQueryKey(storeParams) } });
   const stores = (Array.isArray(allProviders) ? allProviders : []).filter((p) => p.type !== 'service');
   const { data: services, isLoading: servicesLoading } = useListProviders(serviceParams, { query: { queryKey: getListProvidersQueryKey(serviceParams) } });
 
-  const sortedStores = stores.slice(0, SORTED_ITEMS_COUNT);
-  const sortedServiceProviders = (Array.isArray(services) ? services : []).slice(0, SORTED_ITEMS_COUNT);
+  const nearestFirst = (list: Provider[]) => (filterPoint ? list : sortByDistance(list, point));
+  const sortedStores = nearestFirst(stores).slice(0, SORTED_ITEMS_COUNT);
+  const sortedServiceProviders = nearestFirst(Array.isArray(services) ? services : []).slice(0, SORTED_ITEMS_COUNT);
 
   const renderContent = (
     isLoading: boolean,
@@ -38,7 +41,7 @@ export default function NearbyProvidersSection() {
       );
     }
     if (items.length === 0) {
-      if (point) {
+      if (filterPoint) {
         return type === 'store'
           ? <NoneNearby message="No stores deliver to your location yet." allHref="/stores?view=all" allLabel="Browse all stores" />
           : <NoneNearby message="No service providers cover your location yet." allHref="/services?view=all" allLabel="See all service providers" />;
@@ -53,8 +56,8 @@ export default function NearbyProvidersSection() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((item) => (
           type === 'store'
-            ? <StoreCard key={item.id} store={item} distanceKm={item.distanceKm} />
-            : <ServiceCard key={item.id} serviceProvider={item} distanceKm={item.distanceKm} />
+            ? <StoreCard key={item.id} store={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} />
+            : <ServiceCard key={item.id} serviceProvider={item} distanceKm={item.distanceKm ?? providerDistance(point, item)} />
         ))}
       </div>
     );
