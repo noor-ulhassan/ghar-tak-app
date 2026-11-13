@@ -14,25 +14,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CatalogNotice } from "@/components/LoadState";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
-
-const CATEGORY_ICONS: Record<string, string> = {
-  plumber: "tool",
-  cleaner: "wind",
-  hairdresser: "scissors",
-  car_repair: "truck",
-  tech_repair: "cpu",
-  general_repair: "settings",
-  jobs: "briefcase",
-  beauty: "star",
-  home_repair: "home",
-  wellness: "heart",
-  training: "book-open",
-  pest_control: "shield",
-  rental: "key",
-};
+import { deliveryRadiusLabel } from "@/lib/data";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -332,14 +318,15 @@ export default function HomeScreen() {
           <Text style={styles.poweredBy}>Powered by AI for smarter results.</Text>
         </View>
 
-        {/* Just For You / Nearby Stores */}
+        {/* Stores (a plain list until the app knows the customer's location) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Nearby Stores</Text>
+            <Text style={styles.sectionTitle}>Stores</Text>
             <Pressable onPress={() => router.push("/(tabs)/stores")}>
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           </View>
+          <CatalogNotice />
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -365,10 +352,16 @@ export default function HomeScreen() {
                     <Text style={styles.storeCatText}>{item.category}</Text>
                   </View>
                   <View style={styles.storeMeta}>
-                    <Feather name="star" size={11} color="#f59e0b" />
-                    <Text style={styles.storeMetaText}>{item.rating}</Text>
-                    <Feather name="clock" size={11} color={colors.mutedForeground} />
-                    <Text style={styles.storeMetaMuted}>{item.deliveryTime}</Text>
+                    {item.rating > 0 && (
+                      <>
+                        <Feather name="star" size={11} color="#f59e0b" />
+                        <Text style={styles.storeMetaText}>{item.rating.toFixed(1)}</Text>
+                      </>
+                    )}
+                    <Feather name="truck" size={11} color={colors.mutedForeground} />
+                    <Text style={styles.storeMetaMuted} numberOfLines={1}>
+                      {deliveryRadiusLabel(item.deliveryRadiusKm)}
+                    </Text>
                   </View>
                   <View style={styles.viewStoreBtn}>
                     <Text style={styles.viewStoreBtnText}>View Store</Text>
@@ -396,11 +389,7 @@ export default function HomeScreen() {
                   router.push({ pathname: "/service/[category]", params: { category: cat.id } })
                 }
               >
-                <Feather
-                  name={(CATEGORY_ICONS[cat.id] ?? "circle") as any}
-                  size={13}
-                  color={colors.primary}
-                />
+                <Feather name={cat.icon} size={13} color={colors.primary} />
                 <Text style={styles.catName}>{cat.name}</Text>
               </Pressable>
             ))}

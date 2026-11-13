@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
+import { CatalogNotice } from "@/components/LoadState";
+import { categoryLabel, deliveryRadiusLabel } from "@/lib/data";
 
 interface Result {
   id: string;
@@ -30,7 +32,7 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
   const [query, setQuery] = useState(q ?? "");
-  const { stores, serviceProviders } = useData();
+  const { stores, serviceProviders, serviceCategories, ready } = useData();
 
   const results = useMemo<Result[]>(() => {
     const term = query.toLowerCase().trim();
@@ -47,7 +49,7 @@ export default function SearchScreen() {
         id: s.id,
         type: "store" as const,
         name: s.name,
-        subtitle: `${s.category} • ${s.deliveryTime}`,
+        subtitle: [s.category, deliveryRadiusLabel(s.deliveryRadiusKm)].filter(Boolean).join(" • "),
         icon: "shopping-bag",
       }));
 
@@ -62,12 +64,14 @@ export default function SearchScreen() {
         id: p.id,
         type: "provider" as const,
         name: p.name,
-        subtitle: `${p.serviceCategory} • ${p.location.address}`,
+        subtitle: [categoryLabel(p.serviceCategory, serviceCategories), p.location.address]
+          .filter(Boolean)
+          .join(" • "),
         icon: "user",
       }));
 
     return [...storeResults, ...providerResults];
-  }, [query, stores, serviceProviders]);
+  }, [query, stores, serviceProviders, serviceCategories]);
 
   const handlePress = (item: Result) => {
     if (item.type === "store") {
@@ -171,7 +175,11 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {query && results.length === 0 ? (
+      <View style={styles.list}>
+        <CatalogNotice />
+      </View>
+
+      {!ready ? null : query && results.length === 0 ? (
         <View style={styles.empty}>
           <Feather name="search" size={40} color={colors.mutedForeground} />
           <Text style={styles.emptyTitle}>No results found</Text>

@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   FlatList,
   Platform,
@@ -11,9 +12,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadError, LoadingBlock } from "@/components/LoadState";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
+import { ApiError } from "@/lib/api";
+import { categoryLabel, deliveryRadiusLabel, openStatusLabel, type ProviderType } from "@/lib/data";
+import { fetchProvidersInCategory } from "@/lib/db";
+
+interface Row {
+  id: string;
+  type: ProviderType;
+  name: string;
+  description: string;
+  rating: number;
+  address: string;
+  detail: string;
+  isOpen: boolean;
+}
 
 export default function ServiceCategoryScreen() {
   const { category } = useLocalSearchParams<{ category: string }>();
@@ -21,9 +37,42 @@ export default function ServiceCategoryScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
 
-  const { serviceCategories, serviceProviders } = useData();
-  const cat = serviceCategories.find((c) => c.id === category);
-  const providers = serviceProviders.filter((p) => p.serviceCategory === category);
+  const { serviceCategories } = useData();
+  const title = category ? categoryLabel(category, serviceCategories) : "";
+
+  // Like the website's category page: every kind of provider in the category (Groceries
+  // is made up of stores), and the server matches its aliases ("Grocery", "Fashion", ...).
+  const query = useQuery({
+    queryKey: ["providers", "category", category],
+    queryFn: ({ signal }) => fetchProvidersInCategory(category as string, signal),
+    enabled: !!category,
+  });
+
+  const rows = useMemo<Row[]>(() => {
+    if (!query.data) return [];
+    return [
+      ...query.data.serviceProviders.map((p) => ({
+        id: p.id,
+        type: p.type,
+        name: p.name,
+        description: p.description,
+        rating: p.rating,
+        address: p.location.address,
+        detail: openStatusLabel(p),
+        isOpen: p.isOpen,
+      })),
+      ...query.data.stores.map((s) => ({
+        id: s.id,
+        type: s.type,
+        name: s.name,
+        description: s.description,
+        rating: s.rating,
+        address: s.location.address,
+        detail: deliveryRadiusLabel(s.deliveryRadiusKm),
+        isOpen: s.isOpen,
+      })),
+    ];
+  }, [query.data]);
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -87,17 +136,92 @@ export default function ServiceCategoryScreen() {
     },
     meta: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 8 },
     metaText: { fontSize: 12, color: colors.foreground, fontFamily: "Inter_500Medium" },
-    metaMuted: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-    availability: {
+    metaMuted: { fontSize: 12, color: colors.mutedForeground, fontFamily: "Inter_400Regular", flexShrink: 1 },
+    detail: {
       fontSize: 12,
       color: "#16a34a",
       fontFamily: "Inter_500Medium",
       marginTop: 4,
     },
+    detailClosed: { color: colors.destructive },
     empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
     emptyText: { fontSize: 16, color: colors.mutedForeground, fontFamily: "Inter_500Medium", marginTop: 12 },
     footer: { height: isWeb ? 34 : insets.bottom + 20 },
   }));
+
+  const renderBody = () => {
+    if (query.isPending && query.fetchStatus !== "idle") {
+      return <LoadingBlock label="Loading providers…" />;
+    }
+    if (query.isError) {
+      return (
+        <LoadError
+          title="Couldn't load this category"
+          message={query.error instanceof ApiError ? query.error.message : null}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
+      );
+    }
+    if (rows.length === 0) {
+      return (
+        <View style={styles.empty}>
+          <Feather name="users" size={40} color={colors.mutedForeground} />
+          <Text style={styles.emptyText}>No providers in this category</Text>
+        </View>
+      );
+    }
+    return (
+      <FlatList
+        data={rows}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        ListFooterComponent={<View style={styles.footer} />}
+        renderItem={({ item }) => (
+          <Pressable
+            style={styles.card}
+            onPress={() =>
+              item.type === "service"
+                ? router.push({ pathname: "/provider/[id]", params: { id: item.id } })
+                : router.push({ pathname: "/store/[id]", params: { id: item.id } })
+            }
+          >
+            <View style={styles.avatar}>
+              <Feather
+                name={item.type === "service" ? "user" : "shopping-bag"}
+                size={26}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.info}>
+              <Text style={styles.name}>{item.name}</Text>
+              {item.description ? (
+                <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
+              ) : null}
+              <View style={styles.meta}>
+                {item.rating > 0 && (
+                  <>
+                    <Feather name="star" size={12} color="#f59e0b" />
+                    <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
+                  </>
+                )}
+                {item.address ? (
+                  <>
+                    <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+                    <Text style={styles.metaMuted} numberOfLines={1}>{item.address}</Text>
+                  </>
+                ) : null}
+              </View>
+              <Text style={[styles.detail, !item.isOpen && item.type === "service" && styles.detailClosed]}>
+                {item.detail}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -105,47 +229,9 @@ export default function ServiceCategoryScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </Pressable>
-        <Text style={styles.title}>{cat?.name ?? "Service Providers"}</Text>
+        <Text style={styles.title}>{title || "Service Providers"}</Text>
       </View>
-
-      {providers.length === 0 ? (
-        <View style={styles.empty}>
-          <Feather name="users" size={40} color={colors.mutedForeground} />
-          <Text style={styles.emptyText}>No providers in this category</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={providers}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          scrollEnabled={!!providers.length}
-          ListFooterComponent={<View style={styles.footer} />}
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.card}
-              onPress={() =>
-                router.push({ pathname: "/provider/[id]", params: { id: item.id } })
-              }
-            >
-              <View style={styles.avatar}>
-                <Feather name="user" size={26} color={colors.primary} />
-              </View>
-              <View style={styles.info}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
-                <View style={styles.meta}>
-                  <Feather name="star" size={12} color="#f59e0b" />
-                  <Text style={styles.metaText}>{item.rating}</Text>
-                  <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-                  <Text style={styles.metaMuted}>{item.location.address}</Text>
-                </View>
-                <Text style={styles.availability}>{item.availability}</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-            </Pressable>
-          )}
-        />
-      )}
+      {renderBody()}
     </View>
   );
 }

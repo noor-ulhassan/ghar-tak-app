@@ -14,17 +14,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CatalogNotice } from "@/components/LoadState";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
 import { useFavorites } from "@/hooks/useFavorites";
+import { deliveryRadiusLabel, openStatusLabel } from "@/lib/data";
 
 export default function StoresScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const isWeb = Platform.OS === "web";
-  const { stores, refreshing, refresh } = useData();
+  const { stores, ready, refreshing, refresh } = useData();
+  const { user } = useAuth();
   const { favouriteIds, toggleFavourite } = useFavorites();
 
   const filtered = query.trim()
@@ -233,11 +237,15 @@ export default function StoresScreen() {
             colors={[colors.primary]}
           />
         }
+        extraData={favouriteIds}
+        ListHeaderComponent={<CatalogNotice />}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="shopping-bag" size={40} color={colors.mutedForeground} />
-            <Text style={styles.emptyText}>No stores found</Text>
-          </View>
+          ready ? (
+            <View style={styles.empty}>
+              <Feather name="shopping-bag" size={40} color={colors.mutedForeground} />
+              <Text style={styles.emptyText}>No stores found</Text>
+            </View>
+          ) : undefined
         }
         ListFooterComponent={<View style={styles.footer} />}
         renderItem={({ item }) => {
@@ -262,6 +270,10 @@ export default function StoresScreen() {
                     style={styles.heartBtn}
                     onPress={(e) => {
                       e.stopPropagation?.();
+                      if (!user) {
+                        router.push("/signin");
+                        return;
+                      }
                       toggleFavourite(item.id);
                     }}
                     accessibilityLabel={isFav ? "Remove from favourites" : "Add to favourites"}
@@ -278,17 +290,25 @@ export default function StoresScreen() {
                 </View>
                 <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
                 <View style={styles.meta}>
+                  {item.location.address ? (
+                    <View style={styles.metaItem}>
+                      <Feather name="map-pin" size={13} color={colors.mutedForeground} />
+                      <Text style={styles.metaMuted} numberOfLines={1}>{item.location.address}</Text>
+                    </View>
+                  ) : null}
+                  {item.rating > 0 && (
+                    <View style={styles.metaItem}>
+                      <Feather name="star" size={13} color="#f59e0b" />
+                      <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
+                    </View>
+                  )}
                   <View style={styles.metaItem}>
-                    <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-                    <Text style={styles.metaMuted} numberOfLines={1}>{item.location.address}</Text>
+                    <Feather name="truck" size={13} color={colors.mutedForeground} />
+                    <Text style={styles.metaMuted}>{deliveryRadiusLabel(item.deliveryRadiusKm)}</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <Feather name="star" size={13} color="#f59e0b" />
-                    <Text style={styles.metaText}>{item.rating}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Feather name="clock" size={13} color={colors.mutedForeground} />
-                    <Text style={styles.metaMuted}>{item.deliveryTime}</Text>
+                    <Feather name="clock" size={13} color={item.isOpen ? "#16a34a" : colors.destructive} />
+                    <Text style={styles.metaMuted} numberOfLines={1}>{openStatusLabel(item)}</Text>
                   </View>
                 </View>
                 <Pressable

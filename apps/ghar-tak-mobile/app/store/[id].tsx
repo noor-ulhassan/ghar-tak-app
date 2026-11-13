@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   FlatList,
   Platform,
@@ -13,23 +14,44 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadError, LoadingBlock } from "@/components/LoadState";
+import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
+import { useFavorites } from "@/hooks/useFavorites";
+import { retryUnlessNotFound, useStore } from "@/hooks/useProvider";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
-import type { Product } from "@/lib/data";
-import { useData } from "@/context/DataContext";
+import { ApiError } from "@/lib/api";
+import { deliveryRadiusLabel, openStatusLabel, type Product } from "@/lib/data";
+import { fetchProducts } from "@/lib/db";
+import { formatPKR } from "@/lib/pricing";
 
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
-  const [favorited, setFavorited] = useState(false);
+  const { user } = useAuth();
+  const { favouriteIds, toggleFavourite } = useFavorites();
+  const favorited = !!id && favouriteIds.has(id);
   const { addItem, updateQuantity, items, totalItems } = useCart();
 
-  const { stores, products: allProducts } = useData();
-  const store = stores.find((s) => s.id === id);
-  const products = allProducts.filter((p) => p.storeId === id);
+  const storeState = useStore(id);
+  const { store } = storeState;
+  const productsQuery = useQuery({
+    queryKey: ["provider", id, "products"],
+    queryFn: ({ signal }) => fetchProducts(id as string, signal),
+    enabled: !!id && !!store && store.type !== "service",
+    retry: retryUnlessNotFound,
+  });
+  const products = productsQuery.data ?? [];
+
+  // A service provider's link opened as a store: show its own page instead.
+  useEffect(() => {
+    if (store?.type === "service") {
+      router.replace({ pathname: "/provider/[id]", params: { id: store.id } });
+    }
+  }, [store?.type, store?.id]);
 
   const quantities = useMemo(
     () => new Map(items.map((item) => [item.product.id, item.quantity])),
@@ -115,7 +137,9 @@ export default function StoreDetailScreen() {
     },
     metaRow: {
       flexDirection: "row",
-      gap: 20,
+      flexWrap: "wrap" as const,
+      columnGap: 20,
+      rowGap: 10,
       marginTop: 14,
       paddingVertical: 14,
       borderTopWidth: 1,
@@ -193,7 +217,34 @@ export default function StoreDetailScreen() {
     empty: { alignItems: "center", paddingVertical: 24 },
     emptyText: { fontSize: 14, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginTop: 8 },
     footer: { height: isWeb ? 34 : insets.bottom + 20 },
+    centered: { flex: 1, justifyContent: "center", backgroundColor: colors.background },
+    openText: { fontSize: 13, color: "#16a34a", fontFamily: "Inter_500Medium" },
+    closedText: { fontSize: 13, color: colors.destructive, fontFamily: "Inter_500Medium" },
   }));
+
+  if (!store && storeState.loading) {
+    return (
+      <View style={styles.centered}>
+        <LoadingBlock label="Loading store…" />
+      </View>
+    );
+  }
+
+  if (!store && storeState.error) {
+    return (
+      <View style={styles.centered}>
+        <LoadError
+          title="Couldn't load this store"
+          message={storeState.error instanceof ApiError ? storeState.error.message : null}
+          onRetry={storeState.retry}
+          retrying={storeState.retrying}
+        />
+        <Pressable onPress={() => router.back()} style={{ alignSelf: "center" }}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!store) {
     return (
@@ -216,7 +267,7 @@ export default function StoreDetailScreen() {
         <View style={styles.productInfo}>
           <Text style={styles.productName}>{p.name}</Text>
           <Text style={styles.productCategory}>{p.category}</Text>
-          <Text style={styles.productPrice}>${p.price.toFixed(2)}</Text>
+          <Text style={styles.productPrice}>{formatPKR(p.price)}</Text>
         </View>
         {qty === 0 ? (
           <Pressable
@@ -282,9 +333,14 @@ export default function StoreDetailScreen() {
             <Pressable
               style={styles.favBtn}
               onPress={async () => {
+                if (!user) {
+                  router.push("/signin");
+                  return;
+                }
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFavorited((f) => !f);
+                await toggleFavourite(store.id);
               }}
+              accessibilityLabel={favorited ? "Remove from favourites" : "Add to favourites"}
             >
               <Feather name="heart" size={20} color={favorited ? "#ef4444" : "#fff"} />
             </Pressable>
@@ -308,18 +364,26 @@ export default function StoreDetailScreen() {
             <Text style={styles.desc}>{store.description}</Text>
 
             <View style={styles.metaRow}>
+              {store.rating > 0 && (
+                <View style={styles.metaItem}>
+                  <Feather name="star" size={14} color="#f59e0b" />
+                  <Text style={styles.metaText}>{store.rating.toFixed(1)}</Text>
+                </View>
+              )}
               <View style={styles.metaItem}>
-                <Feather name="star" size={14} color="#f59e0b" />
-                <Text style={styles.metaText}>{store.rating}</Text>
+                <Feather name="clock" size={14} color={store.isOpen ? "#16a34a" : colors.destructive} />
+                <Text style={store.isOpen ? styles.openText : styles.closedText}>{openStatusLabel(store)}</Text>
               </View>
               <View style={styles.metaItem}>
-                <Feather name="clock" size={14} color={colors.mutedForeground} />
-                <Text style={styles.metaMuted}>{store.deliveryTime}</Text>
+                <Feather name="truck" size={14} color={colors.mutedForeground} />
+                <Text style={styles.metaMuted}>{deliveryRadiusLabel(store.deliveryRadiusKm)}</Text>
               </View>
-              <View style={styles.metaItem}>
-                <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-                <Text style={styles.metaMuted} numberOfLines={1}>{store.location.address}</Text>
-              </View>
+              {store.location.address ? (
+                <View style={styles.metaItem}>
+                  <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+                  <Text style={styles.metaMuted} numberOfLines={1}>{store.location.address}</Text>
+                </View>
+              ) : null}
             </View>
 
             <Text style={styles.sectionTitle}>Products</Text>
@@ -327,10 +391,21 @@ export default function StoreDetailScreen() {
         </>
       }
       ListEmptyComponent={
-        <View style={styles.empty}>
-          <Feather name="package" size={32} color={colors.mutedForeground} />
-          <Text style={styles.emptyText}>No products listed</Text>
-        </View>
+        productsQuery.isPending && productsQuery.fetchStatus !== "idle" ? (
+          <LoadingBlock label="Loading products…" />
+        ) : productsQuery.isError ? (
+          <LoadError
+            title="Couldn't load products"
+            message={productsQuery.error instanceof ApiError ? productsQuery.error.message : null}
+            onRetry={() => void productsQuery.refetch()}
+            retrying={productsQuery.isFetching}
+          />
+        ) : (
+          <View style={styles.empty}>
+            <Feather name="package" size={32} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No products listed</Text>
+          </View>
+        )
       }
       ListFooterComponent={
         <View style={styles.listEdge}>

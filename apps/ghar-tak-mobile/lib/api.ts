@@ -36,6 +36,62 @@ export class ApiError extends Error {
   }
 }
 
+const API_TIMEOUT_MS = 15_000;
+
+/**
+ * GET a public Ghar Tak API path such as "/api/providers" and return its JSON.
+ * Gives up after 15 seconds; `signal` (e.g. TanStack Query's) can cancel it sooner.
+ * Throws ApiError: status 0 when the server can't be reached or took too long.
+ */
+export async function apiGet<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, API_TIMEOUT_MS);
+  const outer = options.signal;
+  const cancel = () => controller.abort();
+  if (outer?.aborted) controller.abort();
+  else outer?.addEventListener("abort", cancel);
+
+  try {
+    let res: Response;
+    try {
+      res = await fetch(`${getBaseUrl()}${path}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch {
+      throw new ApiError(
+        timedOut
+          ? "The Ghar Tak server is taking too long to answer. Please try again."
+          : "Can't reach the Ghar Tak server. Check your connection and try again.",
+        0,
+      );
+    }
+
+    const data = (await res.json().catch(() => null)) as unknown;
+    if (!res.ok) {
+      const message = (data as { error?: string } | null)?.error;
+      throw new ApiError(message || "Something went wrong. Please try again.", res.status);
+    }
+    if (data === null) {
+      // The body could not be read: cut off by the timeout, or not JSON at all.
+      throw new ApiError(
+        timedOut
+          ? "The Ghar Tak server is taking too long to answer. Please try again."
+          : "The Ghar Tak server sent an answer the app couldn't read. Please try again.",
+        0,
+      );
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener("abort", cancel);
+  }
+}
+
 async function postAI<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
   try {

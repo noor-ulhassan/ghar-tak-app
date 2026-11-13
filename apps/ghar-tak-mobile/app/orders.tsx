@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { formatPKR } from "@/lib/pricing";
 
 const STATUS_COLORS: Record<string, string> = {
   placed: "#f59e0b",
@@ -154,7 +155,7 @@ export default function OrdersScreen() {
                   <View key={item.product.id} style={styles.itemRow}>
                     <Text style={styles.itemName} numberOfLines={1}>{item.product.name}</Text>
                     <Text style={styles.itemQtyPrice}>
-                      ×{item.quantity} · ${(item.product.price * item.quantity).toFixed(2)}
+                      ×{item.quantity} · {formatPKR(item.product.price * item.quantity)}
                     </Text>
                   </View>
                 ))}
@@ -163,7 +164,7 @@ export default function OrdersScreen() {
 
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Total paid</Text>
-                  <Text style={styles.totalValue}>${order.total.toFixed(2)}</Text>
+                  <Text style={styles.totalValue}>{formatPKR(order.total)}</Text>
                 </View>
 
                 <View style={styles.addressRow}>

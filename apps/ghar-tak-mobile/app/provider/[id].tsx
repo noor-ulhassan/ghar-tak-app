@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,8 +23,11 @@ import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useBookings } from "@/context/BookingsContext";
 import { useData } from "@/context/DataContext";
-import { serviceOptionsFor } from "@/lib/data";
-import { getBaseUrl } from "@/lib/api";
+import { LoadError, LoadingBlock } from "@/components/LoadState";
+import { retryUnlessNotFound, useServiceProvider } from "@/hooks/useProvider";
+import { categoryLabel, openStatusLabel } from "@/lib/data";
+import { fetchServices } from "@/lib/db";
+import { ApiError, getBaseUrl } from "@/lib/api";
 
 const TIME_SLOTS = ["Morning (9am – 12pm)", "Afternoon (12pm – 4pm)", "Evening (4pm – 8pm)"];
 
@@ -43,14 +47,28 @@ export default function ProviderDetailScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
 
-  const { serviceProviders, serviceCategories } = useData();
+  const { serviceCategories } = useData();
   const { bookService } = useBookings();
-  const provider = serviceProviders.find((p) => p.id === id);
-  const catName = provider
-    ? serviceCategories.find((c) => c.id === provider.serviceCategory)?.name
-    : null;
-  const services = provider ? serviceOptionsFor(provider.serviceCategory) : [];
+  const providerState = useServiceProvider(id);
+  const { provider } = providerState;
+  const catName = provider ? categoryLabel(provider.serviceCategory, serviceCategories) : null;
+  // The services this provider lists (GET /api/providers/:id/services).
+  const servicesQuery = useQuery({
+    queryKey: ["provider", id, "services"],
+    queryFn: ({ signal }) => fetchServices(id as string, signal),
+    enabled: !!id && !!provider && provider.type === "service",
+    retry: retryUnlessNotFound,
+  });
+  const services = servicesQuery.data ?? [];
+  const servicesLoading = servicesQuery.isPending && servicesQuery.fetchStatus !== "idle";
   const dayOptions = upcomingDays(7);
+
+  // A store's link opened as a service provider: show the store page instead.
+  useEffect(() => {
+    if (provider && provider.type !== "service") {
+      router.replace({ pathname: "/store/[id]", params: { id: provider.id } });
+    }
+  }, [provider?.type, provider?.id]);
 
   // Booking modal state
   const [bookOpen, setBookOpen] = useState(false);
@@ -69,6 +87,10 @@ export default function ProviderDetailScreen() {
       return;
     }
     const option = services[serviceIdx] ?? services[0];
+    if (!option) {
+      Alert.alert("No services yet", "This provider hasn't listed any services to book yet.");
+      return;
+    }
     setBooking(true);
     try {
       await bookService({
@@ -231,7 +253,43 @@ export default function ProviderDetailScreen() {
       paddingVertical: 12, paddingHorizontal: 24, alignItems: "center", marginTop: 8,
     },
     viewBookingsText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    centered: { flex: 1, justifyContent: "center", backgroundColor: colors.background },
+    closedText: { color: colors.destructive },
+    sectionTitle: { fontSize: 17, color: colors.foreground, fontFamily: "Inter_600SemiBold", marginBottom: 12 },
+    serviceRow: {
+      backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+      padding: 14, marginBottom: 10, gap: 4,
+    },
+    serviceName: { fontSize: 15, color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+    serviceDesc: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", lineHeight: 18 },
+    serviceMeta: { fontSize: 13, color: colors.primary, fontFamily: "Inter_500Medium" },
+    mutedNote: { fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular", marginBottom: 12 },
+    primaryBtnDisabled: { opacity: 0.5 },
   }));
+
+  if (!provider && providerState.loading) {
+    return (
+      <View style={styles.centered}>
+        <LoadingBlock label="Loading provider…" />
+      </View>
+    );
+  }
+
+  if (!provider && providerState.error) {
+    return (
+      <View style={styles.centered}>
+        <LoadError
+          title="Couldn't load this provider"
+          message={providerState.error instanceof ApiError ? providerState.error.message : null}
+          onRetry={providerState.retry}
+          retrying={providerState.retrying}
+        />
+        <Pressable onPress={() => router.back()} style={{ alignSelf: "center" }}>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_500Medium" }}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!provider) {
     return (
@@ -270,28 +328,55 @@ export default function ProviderDetailScreen() {
             </View>
           </View>
 
-          {catName && (
+          {catName ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{catName}</Text>
             </View>
-          )}
+          ) : null}
 
           {provider.description ? <Text style={styles.desc}>{provider.description}</Text> : null}
 
+          {provider.location.address ? (
+            <View style={styles.infoRow}>
+              <Feather name="map-pin" size={18} color={colors.primary} />
+              <Text style={styles.infoText}>{provider.location.address}</Text>
+            </View>
+          ) : null}
           <View style={styles.infoRow}>
-            <Feather name="map-pin" size={18} color={colors.primary} />
-            <Text style={styles.infoText}>{provider.location.address}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Feather name="clock" size={18} color="#16a34a" />
-            <Text style={styles.infoText}>{provider.availability}</Text>
+            <Feather name="clock" size={18} color={provider.isOpen ? "#16a34a" : colors.destructive} />
+            <Text style={[styles.infoText, !provider.isOpen && styles.closedText]}>{openStatusLabel(provider)}</Text>
           </View>
 
           <View style={styles.divider} />
 
+          <Text style={styles.sectionTitle}>Services</Text>
+          {servicesLoading ? (
+            <LoadingBlock label="Loading services…" />
+          ) : servicesQuery.isError ? (
+            <LoadError
+              title="Couldn't load services"
+              message={servicesQuery.error instanceof ApiError ? servicesQuery.error.message : null}
+              onRetry={() => void servicesQuery.refetch()}
+              retrying={servicesQuery.isFetching}
+            />
+          ) : services.length === 0 ? (
+            <Text style={styles.mutedNote}>This provider hasn't listed any services yet.</Text>
+          ) : (
+            services.map((service) => (
+              <View key={service.id} style={styles.serviceRow}>
+                <Text style={styles.serviceName}>{service.name}</Text>
+                {service.description ? <Text style={styles.serviceDesc}>{service.description}</Text> : null}
+                <Text style={styles.serviceMeta}>
+                  {service.duration ? `${service.priceRange} · ${service.duration}` : service.priceRange}
+                </Text>
+              </View>
+            ))
+          )}
+
           <View style={styles.btnRow}>
             <Pressable
-              style={styles.primaryBtn}
+              style={[styles.primaryBtn, services.length === 0 && styles.primaryBtnDisabled]}
+              disabled={services.length === 0}
               onPress={async () => {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setBooked(false);
@@ -393,12 +478,14 @@ export default function ProviderDetailScreen() {
                 <View style={styles.chipWrap}>
                   {services.map((service, i) => (
                     <Pressable
-                      key={service.name}
+                      key={service.id}
                       style={[styles.chip, i === serviceIdx && styles.chipActive]}
                       onPress={() => setServiceIdx(i)}
                     >
                       <Text style={[styles.chipText, i === serviceIdx && styles.chipTextActive]}>{service.name}</Text>
-                      <Text style={[styles.chipPrice, i === serviceIdx && styles.chipTextActive]}>{service.priceRange}</Text>
+                      <Text style={[styles.chipPrice, i === serviceIdx && styles.chipTextActive]}>
+                        {service.duration ? `${service.priceRange} · ${service.duration}` : service.priceRange}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { Product } from "@/lib/data";
+import { deliveryFeeFor } from "@/lib/pricing";
 
 export interface CartItem {
   product: Product;
@@ -34,7 +35,9 @@ interface CartContextValue {
   placeOrder: (name: string, address: string, phone: string) => Promise<Order>;
 }
 
-const CART_KEY = "ghar_tak_cart";
+// v2: carts saved before the app read real shops held sample items priced in US dollars.
+const CART_KEY = "ghar_tak_cart_v2";
+const OLD_CART_KEY = "ghar_tak_cart";
 const ORDERS_KEY = "ghar_tak_orders";
 
 const CartContext = createContext<CartContextValue>({
@@ -64,6 +67,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (cartJson) setItems(JSON.parse(cartJson));
         if (ordersJson) setOrders(JSON.parse(ordersJson));
+        AsyncStorage.removeItem(OLD_CART_KEY).catch(() => {});
       } catch {}
       setLoaded(true);
     })();
@@ -109,13 +113,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     saveCart([]);
   }, [saveCart]);
 
-  const DELIVERY_FEE = 2;
-
   const placeOrder = useCallback(async (name: string, address: string, phone: string): Promise<Order> => {
+    const subtotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
     const order: Order = {
       id: `order_${Date.now()}`,
       items: [...items],
-      total: items.reduce((sum, i) => sum + i.product.price * i.quantity, 0) + DELIVERY_FEE,
+      total: subtotal + deliveryFeeFor(subtotal),
       name,
       address,
       phone,

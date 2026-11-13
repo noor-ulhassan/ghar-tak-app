@@ -15,12 +15,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { deliveryFeeFor, formatPKR, FREE_DELIVERY_THRESHOLD } from "@/lib/pricing";
 
 export default function CartScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
   const { items, removeItem, updateQuantity, totalItems, totalPrice } = useCart();
+  const deliveryFee = deliveryFeeFor(totalPrice);
+  const grandTotal = totalPrice + deliveryFee;
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -140,7 +143,7 @@ export default function CartScreen() {
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{item.product.name}</Text>
                 {item.storeName && <Text style={styles.itemStore}>{item.storeName}</Text>}
-                <Text style={styles.itemPrice}>${(item.product.price * item.quantity).toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>{formatPKR(item.product.price * item.quantity)}</Text>
               </View>
               <View style={styles.qtyRow}>
                 <Pressable
@@ -178,16 +181,21 @@ export default function CartScreen() {
           <View style={styles.summaryBox}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal ({totalItems} items)</Text>
-              <Text style={styles.summaryValue}>${totalPrice.toFixed(2)}</Text>
+              <Text style={styles.summaryValue}>{formatPKR(totalPrice)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Delivery fee</Text>
-              <Text style={styles.summaryValue}>$2.00</Text>
+              <Text style={styles.summaryValue}>{deliveryFee === 0 ? "Free" : formatPKR(deliveryFee)}</Text>
             </View>
+            {deliveryFee > 0 && (
+              <Text style={styles.summaryLabel}>
+                Add PKR {(FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(0)} more for free delivery.
+              </Text>
+            )}
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${(totalPrice + 2).toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{formatPKR(grandTotal)}</Text>
             </View>
           </View>
         </ScrollView>
@@ -201,7 +209,7 @@ export default function CartScreen() {
             router.push("/checkout" as any);
           }}
         >
-          <Text style={styles.checkoutBtnText}>Proceed to Checkout — ${(totalPrice + 2).toFixed(2)}</Text>
+          <Text style={styles.checkoutBtnText}>Proceed to Checkout — {formatPKR(grandTotal)}</Text>
         </Pressable>
       )}
     </View>

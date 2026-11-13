@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { deliveryFeeFor, formatPKR, FREE_DELIVERY_THRESHOLD } from "@/lib/pricing";
 
 export default function CheckoutScreen() {
   const colors = useColors();
@@ -158,7 +159,8 @@ export default function CheckoutScreen() {
     }
   };
 
-  const grandTotal = totalPrice + 2;
+  const deliveryFee = deliveryFeeFor(totalPrice);
+  const grandTotal = totalPrice + deliveryFee;
 
   // Every hook above runs on every render; only now is it safe to show nothing.
   if (items.length === 0) return null;
@@ -197,7 +199,7 @@ export default function CheckoutScreen() {
           <Text style={styles.label}>Phone Number</Text>
           <TextInput
             style={styles.input}
-            placeholder="+1 (555) 000-0000"
+            placeholder="+92 300 0000000"
             placeholderTextColor={colors.mutedForeground}
             value={phone}
             onChangeText={setPhone}
@@ -224,18 +226,23 @@ export default function CheckoutScreen() {
             <View key={item.product.id} style={styles.orderItem}>
               <Text style={styles.orderItemName} numberOfLines={1}>{item.product.name}</Text>
               <Text style={styles.orderItemQty}>×{item.quantity}</Text>
-              <Text style={styles.orderItemPrice}>${(item.product.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.orderItemPrice}>{formatPKR(item.product.price * item.quantity)}</Text>
             </View>
           ))}
           <View style={styles.divider} />
           <View style={styles.orderItem}>
             <Text style={styles.orderItemName}>Delivery fee</Text>
-            <Text style={styles.orderItemPrice}>$2.00</Text>
+            <Text style={styles.orderItemPrice}>{deliveryFee === 0 ? "Free" : formatPKR(deliveryFee)}</Text>
           </View>
+          {deliveryFee > 0 && (
+            <Text style={styles.orderItemQty}>
+              Add PKR {(FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(0)} more for free delivery.
+            </Text>
+          )}
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${grandTotal.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatPKR(grandTotal)}</Text>
           </View>
         </View>
 
@@ -248,7 +255,7 @@ export default function CheckoutScreen() {
         disabled={loading}
       >
         <Text style={styles.placeBtnText}>
-          {loading ? "Placing Order…" : `Place Order — $${grandTotal.toFixed(2)}`}
+          {loading ? "Placing Order…" : `Place Order — ${formatPKR(grandTotal)}`}
         </Text>
       </Pressable>
     </KeyboardAvoidingView>
