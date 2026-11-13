@@ -136,6 +136,12 @@ export default function BecomeProviderPage() {
                 </div>
               </div>
               <ShopLocationFields providerType={formData.type} value={shopLocation} onChange={setShopLocation} openAt={lastSeenAt} />
+              {shopLocation.point === null && (
+                <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  You haven't pinned {formData.type === "service" ? "where you work from" : "your shop"} on the map yet.
+                  You can still sign up, but customers won't see you in their "near me" lists until you do.
+                </p>
+              )}
               <Button type="submit" className="w-full text-lg py-6" disabled={createProvider.isPending || radiusError !== null}>
                 {createProvider.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
                 Submit Registration

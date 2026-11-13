@@ -13,7 +13,7 @@ export interface MapSurfaceHandle {
 export interface MapSurfaceProps {
   /** Where the map opens. Read once, when the map is created. */
   start: { point: Coords; zoom: number };
-  /** The person started moving the map themselves (a drag, or an arrow key). */
+  /** The person started moving the map themselves (a drag, a two-finger gesture, or an arrow key). */
   onUserMove: () => void;
   /** The map finished moving or zooming; the centre as the map library gives it. */
   onMoveEnd: (center: Coords) => void;

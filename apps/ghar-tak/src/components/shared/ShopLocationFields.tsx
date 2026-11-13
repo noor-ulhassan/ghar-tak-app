@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId } from 'react';
+import { useId } from 'react';
 import {
   DEFAULT_DELIVERY_RADIUS_KM,
   MAX_DELIVERY_RADIUS_KM,
@@ -7,9 +7,7 @@ import {
 } from '@workspace/geo';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-// The map library is only downloaded when a form with a map opens.
-const LocationPicker = lazy(() => import('@/components/shared/LocationPicker'));
+import LazyLocationPicker from '@/components/shared/LazyLocationPicker';
 
 export interface ShopLocation {
   point: Coords | null;
@@ -40,7 +38,9 @@ export function radiusProblem(radiusKm: string): string | null {
 
 /** The fields to send to the API. Call only when radiusProblem() is null. */
 export function shopLocationRequest(location: ShopLocation) {
-  return { ...(location.point ?? {}), deliveryRadiusKm: Number(location.radiusKm) };
+  // The database keeps one decimal, so send exactly what it will store (1.25 would become 1.3).
+  const deliveryRadiusKm = Math.round(Number(location.radiusKm) * 10) / 10;
+  return { ...(location.point ?? {}), deliveryRadiusKm };
 }
 
 export default function ShopLocationFields({
@@ -55,20 +55,25 @@ export default function ShopLocationFields({
   openAt?: Coords | null;
 }) {
   const radiusId = useId();
+  const radiusHelpId = useId();
+  const locationLabelId = useId();
   const isService = providerType === 'service';
   const problem = radiusProblem(value.radiusKm);
 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>{isService ? 'Where you work from' : 'Shop location on the map'}</Label>
+        <Label id={locationLabelId}>{isService ? 'Where you work from' : 'Shop location on the map'}</Label>
         <p className="text-sm text-muted-foreground">
           Move the map until the pin sits on your {isService ? 'base' : 'shop'}. Customers only see you in their
           "near me" lists once this is set.
         </p>
-        <Suspense fallback={<div className="h-72 rounded-md border bg-muted animate-pulse" />}>
-          <LocationPicker value={value.point} onChange={(point) => onChange({ ...value, point })} openAt={openAt} />
-        </Suspense>
+        <LazyLocationPicker
+          value={value.point}
+          onChange={(point) => onChange({ ...value, point })}
+          openAt={openAt}
+          labelledBy={locationLabelId}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor={radiusId}>{isService ? 'Service area (km)' : 'Delivery radius (km)'}</Label>
@@ -82,11 +87,12 @@ export default function ShopLocationFields({
           value={value.radiusKm}
           onChange={(e) => onChange({ ...value, radiusKm: e.target.value })}
           aria-invalid={problem !== null}
+          aria-describedby={radiusHelpId}
           className="max-w-[10rem]"
         />
-        <p className={`text-xs ${problem ? 'text-destructive' : 'text-muted-foreground'}`}>
+        <p id={radiusHelpId} className={`text-xs ${problem ? 'text-destructive' : 'text-muted-foreground'}`}>
           {problem ??
-            `How far you ${isService ? 'travel to customers' : 'deliver'}, in a straight line from the pin. ${MIN_DELIVERY_RADIUS_KM} to ${MAX_DELIVERY_RADIUS_KM} km.`}
+            `How far you ${isService ? 'travel to customers' : 'deliver'}, in a straight line from the pin, e.g. 5 or 2.5. ${MIN_DELIVERY_RADIUS_KM} to ${MAX_DELIVERY_RADIUS_KM} km.`}
         </p>
       </div>
     </div>

@@ -29,29 +29,39 @@ export function EditShopDialog({
   onOpenChange: (open: boolean) => void;
   shop: Provider;
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        {/* Radix removes this while the dialog is closed, so every opening starts from the saved shop
+            (a map left on an abandoned pin must not carry over) and a refresh of `shop` can't wipe typing. */}
+        <EditShopForm onOpenChange={onOpenChange} shop={shop} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditShopForm({
+  onOpenChange, shop,
+}: {
+  onOpenChange: (open: boolean) => void;
+  shop: Provider;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState<UpdateProviderRequest>({});
-  const [location, setLocation] = useState(initialShopLocation);
+  const [form, setForm] = useState<UpdateProviderRequest>(() => ({
+    name: shop.name ?? "",
+    category: shop.category ?? "",
+    description: shop.description ?? "",
+    address: shop.address ?? "",
+    phone: shop.phone ?? "",
+    email: shop.email ?? "",
+    openingHours: shop.openingHours ?? "",
+    avatarUrl: shop.avatarUrl ?? "",
+    coverUrl: shop.coverUrl ?? "",
+    isOpen: shop.isOpen ?? true,
+  }));
+  const [location, setLocation] = useState(() => initialShopLocation(shop));
   const radiusError = radiusProblem(location.radiusKm);
-
-  useEffect(() => {
-    if (open) {
-      setLocation(initialShopLocation(shop));
-      setForm({
-        name: shop.name ?? "",
-        category: shop.category ?? "",
-        description: shop.description ?? "",
-        address: shop.address ?? "",
-        phone: shop.phone ?? "",
-        email: shop.email ?? "",
-        openingHours: shop.openingHours ?? "",
-        avatarUrl: shop.avatarUrl ?? "",
-        coverUrl: shop.coverUrl ?? "",
-        isOpen: shop.isOpen ?? true,
-      });
-    }
-  }, [open, shop]);
 
   const mutation = useUpdateMyProvider({
     mutation: {
@@ -68,42 +78,40 @@ export function EditShopDialog({
   const set = (patch: Partial<UpdateProviderRequest>) => setForm((f) => ({ ...f, ...patch }));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Edit Shop Details</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-4">
-          <div><Label>Name</Label><Input value={form.name ?? ""} onChange={(e) => set({ name: e.target.value })} /></div>
-          <div><Label>Category</Label><CategorySelect providerType={shop.type} value={form.category ?? ""} onChange={(category) => set({ category })} /></div>
-          <div><Label>Description</Label><Textarea value={form.description ?? ""} onChange={(e) => set({ description: e.target.value })} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Phone</Label><Input value={form.phone ?? ""} onChange={(e) => set({ phone: e.target.value })} /></div>
-            <div><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => set({ email: e.target.value })} /></div>
-          </div>
-          <div><Label>Address</Label><Input value={form.address ?? ""} onChange={(e) => set({ address: e.target.value })} /></div>
-          <div><Label>Opening Hours</Label><Input value={form.openingHours ?? ""} onChange={(e) => set({ openingHours: e.target.value })} placeholder="Mon–Sat 9am–9pm" /></div>
-          <div><Label>Logo Image URL</Label><Input value={form.avatarUrl ?? ""} onChange={(e) => set({ avatarUrl: e.target.value })} placeholder="https://…" /></div>
-          <div><Label>Cover Image URL</Label><Input value={form.coverUrl ?? ""} onChange={(e) => set({ coverUrl: e.target.value })} placeholder="https://…" /></div>
-          <div className="flex items-center justify-between">
-            <Label>Shop Status</Label>
-            <Button type="button" variant={form.isOpen ? "default" : "outline"} size="sm"
-              onClick={() => set({ isOpen: !form.isOpen })}>
-              {form.isOpen ? "Open" : "Closed"}
-            </Button>
-          </div>
-          <ShopLocationFields providerType={shop.type} value={location} onChange={setLocation} />
+    <>
+      <DialogHeader><DialogTitle>Edit Shop Details</DialogTitle></DialogHeader>
+      <div className="space-y-3 py-4">
+        <div><Label>Name</Label><Input value={form.name ?? ""} onChange={(e) => set({ name: e.target.value })} /></div>
+        <div><Label>Category</Label><CategorySelect providerType={shop.type} value={form.category ?? ""} onChange={(category) => set({ category })} /></div>
+        <div><Label>Description</Label><Textarea value={form.description ?? ""} onChange={(e) => set({ description: e.target.value })} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Phone</Label><Input value={form.phone ?? ""} onChange={(e) => set({ phone: e.target.value })} /></div>
+          <div><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => set({ email: e.target.value })} /></div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => mutation.mutate({ data: { ...form, ...shopLocationRequest(location) } })}
-            disabled={mutation.isPending || !form.name?.trim() || radiusError !== null}
-          >
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+        <div><Label>Address</Label><Input value={form.address ?? ""} onChange={(e) => set({ address: e.target.value })} /></div>
+        <div><Label>Opening Hours</Label><Input value={form.openingHours ?? ""} onChange={(e) => set({ openingHours: e.target.value })} placeholder="Mon–Sat 9am–9pm" /></div>
+        <div><Label>Logo Image URL</Label><Input value={form.avatarUrl ?? ""} onChange={(e) => set({ avatarUrl: e.target.value })} placeholder="https://…" /></div>
+        <div><Label>Cover Image URL</Label><Input value={form.coverUrl ?? ""} onChange={(e) => set({ coverUrl: e.target.value })} placeholder="https://…" /></div>
+        <div className="flex items-center justify-between">
+          <Label>Shop Status</Label>
+          <Button type="button" variant={form.isOpen ? "default" : "outline"} size="sm"
+            onClick={() => set({ isOpen: !form.isOpen })}>
+            {form.isOpen ? "Open" : "Closed"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <ShopLocationFields providerType={shop.type} value={location} onChange={setLocation} />
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <Button
+          onClick={() => mutation.mutate({ data: { ...form, ...shopLocationRequest(location) } })}
+          disabled={mutation.isPending || !form.name?.trim() || radiusError !== null}
+        >
+          {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Changes
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 

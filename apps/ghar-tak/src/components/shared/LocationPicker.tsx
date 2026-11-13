@@ -1,13 +1,14 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, LocateFixed, MapPin } from 'lucide-react';
 import type { Coords } from '@workspace/geo';
 import { Button } from '@/components/ui/button';
 import GoogleMapSurface from '@/components/shared/GoogleMapSurface';
+import LazyMapChunk from '@/components/shared/LazyMapChunk';
 import type { MapSurfaceHandle, MapSurfaceProps } from '@/components/shared/mapSurface';
-import { googleMapsKeyRejected, hasGoogleMapsKey } from '@/lib/googleMaps';
+import { googleMapsUnavailable, hasGoogleMapsKey } from '@/lib/googleMaps';
 
 // The OpenStreetMap library is only downloaded when Google Maps can't be used.
-const OsmMapSurface = lazy(() => import('@/components/shared/OsmMapSurface'));
+const loadOsmSurface = () => import('@/components/shared/OsmMapSurface');
 
 // Where the map opens when there is no pin yet and no better guess.
 const LAHORE: Coords = { lat: 31.5204, lng: 74.3587 };
@@ -23,16 +24,30 @@ function clean(point: Coords): Coords {
 
 const samePoint = (a: Coords, b: Coords) => a.lat === b.lat && a.lng === b.lng;
 
-interface LocationPickerProps {
+/** How the point that was just reported came to be chosen. */
+export type PointOrigin =
+  /** The person dragged, pinched or used the arrow keys. */
+  | { kind: 'moved' }
+  /** "Use my current location" placed it, and the map hasn't been moved since. */
+  | { kind: 'device'; accuracyM: number }
+  /** A `jumpTo` (a city button, say) placed it, and the map hasn't been moved since. */
+  | { kind: 'jump' }
+  /** The map opened on `value` (or `value` was set from outside) and nobody has moved it. */
+  | { kind: 'initial' };
+
+export interface LocationPickerProps {
   /** The chosen point, or null while nothing has been chosen. */
   value: Coords | null;
-  onChange: (point: Coords) => void;
+  /** The chosen point and how it was chosen. The origin stays the same through the zooms that follow. */
+  onChange: (point: Coords, origin: PointOrigin) => void;
   /** Where to open the map when `value` is null, e.g. the customer's last known location. */
   openAt?: Coords | null;
   /** Each new object moves the map there and chooses that spot (a city button, say). */
   jumpTo?: { point: Coords; zoom: number } | null;
   /** Told about each device reading "Use my current location" places, with its accuracy. */
   onLocate?: (point: Coords, accuracyM: number) => void;
+  /** The id of the element that names this map (a form label), for screen readers. */
+  labelledBy?: string;
 }
 
 /**
@@ -42,9 +57,16 @@ interface LocationPickerProps {
  * scrolling the page past the map changes nothing. Google Maps when a working key is set,
  * otherwise OpenStreetMap.
  */
-export default function LocationPicker({ value, onChange, openAt, jumpTo, onLocate }: LocationPickerProps) {
+export default function LocationPicker({
+  value,
+  onChange,
+  openAt,
+  jumpTo,
+  onLocate,
+  labelledBy,
+}: LocationPickerProps) {
   const [engine, setEngine] = useState<'google' | 'osm'>(() =>
-    hasGoogleMapsKey && !googleMapsKeyRejected() ? 'google' : 'osm',
+    hasGoogleMapsKey && !googleMapsUnavailable() ? 'google' : 'osm',
   );
   const handleRef = useRef<MapSurfaceHandle | null>(null);
   const touchedRef = useRef(value !== null);
@@ -56,6 +78,9 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
   onLocateRef.current = onLocate;
   // The last point this picker reported, to tell its own changes from ones made outside.
   const reportedRef = useRef<Coords | null>(value);
+  // How the current point came to be. A placement by the device or a jump sticks, through
+  // the zooms and map events that follow it, until the person moves the map themselves.
+  const originRef = useRef<PointOrigin>({ kind: 'initial' });
   // A city jump asked for before the map was ready.
   const pendingJumpRef = useRef<{ point: Coords; zoom: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -63,13 +88,23 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
 
   const report = (point: Coords) => {
     reportedRef.current = point;
-    onChangeRef.current(point);
+    onChangeRef.current(point, originRef.current);
+  };
+
+  const placeJump = (handle: MapSurfaceHandle, jump: { point: Coords; zoom: number }) => {
+    touchedRef.current = true;
+    originRef.current = { kind: 'jump' };
+    setNote(null);
+    handle.moveTo(jump.point, jump.zoom);
+    report(clean(jump.point));
   };
 
   const surfaceProps: MapSurfaceProps = {
     start: { point: value ?? openAt ?? LAHORE, zoom: value ? 17 : 13 },
     onUserMove: () => {
       touchedRef.current = true;
+      originRef.current = { kind: 'moved' };
+      setNote(null);
     },
     onMoveEnd: (center) => {
       if (touchedRef.current) report(clean(center));
@@ -85,11 +120,7 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
       }
       const jump = pendingJumpRef.current;
       pendingJumpRef.current = null;
-      if (jump) {
-        touchedRef.current = true;
-        handle.moveTo(jump.point, jump.zoom);
-        report(clean(jump.point));
-      }
+      if (jump) placeJump(handle, jump);
     },
     onUnavailable: () => setEngine('osm'),
   };
@@ -101,6 +132,7 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
     if (!handle || !value || (reported && samePoint(reported, value))) return;
     reportedRef.current = value;
     touchedRef.current = true;
+    originRef.current = { kind: 'initial' };
     handle.moveTo(value, Math.max(handle.zoom(), 17));
   }, [value]);
 
@@ -111,9 +143,7 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
       pendingJumpRef.current = jumpTo;
       return;
     }
-    touchedRef.current = true;
-    handle.moveTo(jumpTo.point, jumpTo.zoom);
-    report(clean(jumpTo.point));
+    placeJump(handle, jumpTo);
   }, [jumpTo]);
 
   const useCurrentLocation = () => {
@@ -129,6 +159,7 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
         const point = clean({ lat: position.coords.latitude, lng: position.coords.longitude });
         const metres = Math.round(position.coords.accuracy);
         touchedRef.current = true;
+        originRef.current = { kind: 'device', accuracyM: metres };
         handleRef.current?.moveTo(point, 18);
         report(point);
         onLocateRef.current?.(point, metres);
@@ -151,14 +182,13 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
   };
 
   return (
-    <div className="space-y-2">
-      <div className="relative isolate h-72 overflow-hidden rounded-md border">
+    <div className="space-y-2" role={labelledBy ? 'group' : undefined} aria-labelledby={labelledBy}>
+      {/* The wrapper clips Leaflet's own focus outline, so it draws the ring for keyboard focus. */}
+      <div className="relative isolate h-72 overflow-hidden rounded-md border has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
         {engine === 'google' ? (
           <GoogleMapSurface {...surfaceProps} />
         ) : (
-          <Suspense fallback={<div className="h-full w-full bg-muted animate-pulse" />}>
-            <OsmMapSurface {...surfaceProps} />
-          </Suspense>
+          <LazyMapChunk load={loadOsmSurface} componentProps={surfaceProps} frameClassName="h-full w-full" />
         )}
         <MapPin
           className="pointer-events-none absolute left-1/2 top-1/2 z-[500] h-9 w-9 -translate-x-1/2 -translate-y-full fill-primary text-primary-foreground drop-shadow"
@@ -170,23 +200,28 @@ export default function LocationPicker({ value, onChange, openAt, jumpTo, onLoca
           {locating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LocateFixed className="mr-2 h-4 w-4" />}
           Use my current location
         </Button>
-        {value ? (
-          <span className="text-muted-foreground">
-            Pin at {value.lat.toFixed(5)}, {value.lng.toFixed(5)} ·{' '}
-            <a
-              href={`https://www.google.com/maps?q=${value.lat},${value.lng}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary hover:underline"
-            >
-              Check on Google Maps
-            </a>
-          </span>
-        ) : (
-          <span className="text-muted-foreground">No pin yet: move the map to the right spot.</span>
-        )}
+        <span role="status" className="text-muted-foreground">
+          {value ? (
+            <>
+              Pin at {value.lat.toFixed(5)}, {value.lng.toFixed(5)} ·{' '}
+              <a
+                href={`https://www.google.com/maps?q=${value.lat},${value.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                Check on Google Maps
+              </a>
+            </>
+          ) : (
+            'No pin yet: move the map to the right spot.'
+          )}
+        </span>
       </div>
-      {note && <p className="text-xs text-muted-foreground">{note}</p>}
+      {/* Always in the page, so screen readers announce the note when it appears. */}
+      <p role="status" className={note ? 'text-xs text-muted-foreground' : 'sr-only'}>
+        {note}
+      </p>
     </div>
   );
 }

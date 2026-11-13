@@ -1,6 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MapSurfaceProps } from '@/components/shared/mapSurface';
-import { loadGoogleMaps, onGoogleMapsKeyRejected } from '@/lib/googleMaps';
+import { loadGoogleMaps, markGoogleMapsUnavailable, onGoogleMapsKeyRejected } from '@/lib/googleMaps';
+
+// A script that hangs (a bad connection that never answers) must not leave a blank box for ever.
+const READY_TIMEOUT_MS = 10_000;
+
+// Google's own controls (zoom buttons, the map-type menu) take arrow keys for themselves.
+const OWN_CONTROLS = 'button, a, input, select, [role="menu"], [role^="menuitem"]';
 
 /**
  * Google Maps with a Map / Satellite switch. "Cooperative" gestures mean a plain scroll
@@ -11,6 +17,7 @@ export default function GoogleMapSurface(props: MapSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -18,15 +25,22 @@ export default function GoogleMapSurface(props: MapSurfaceProps) {
     let cancelled = false;
     const listeners: google.maps.MapsEventListener[] = [];
     const stopListening = onGoogleMapsKeyRejected(() => propsRef.current.onUnavailable());
+    const giveUp = () => {
+      markGoogleMapsUnavailable();
+      propsRef.current.onUnavailable();
+    };
+    const timeout = window.setTimeout(giveUp, READY_TIMEOUT_MS);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.startsWith('Arrow')) propsRef.current.onUserMove();
+      if (!event.key.startsWith('Arrow')) return;
+      if (event.target instanceof Element && event.target.closest(OWN_CONTROLS)) return;
+      propsRef.current.onUserMove();
     };
 
     loadGoogleMaps()
       .then(() => {
         if (cancelled) return;
         if (typeof window.google?.maps?.Map !== 'function') {
-          propsRef.current.onUnavailable();
+          giveUp();
           return;
         }
         const { start } = propsRef.current;
@@ -48,6 +62,8 @@ export default function GoogleMapSurface(props: MapSurfaceProps) {
           }),
         );
         container.addEventListener('keydown', onKey);
+        window.clearTimeout(timeout);
+        setReady(true);
         propsRef.current.onReady({
           moveTo: (point, zoom) => {
             map.setZoom(zoom);
@@ -62,6 +78,7 @@ export default function GoogleMapSurface(props: MapSurfaceProps) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
       stopListening();
       listeners.forEach((listener) => listener.remove());
       container.removeEventListener('keydown', onKey);
@@ -70,10 +87,15 @@ export default function GoogleMapSurface(props: MapSurfaceProps) {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full"
-      aria-label="Map. Move it until the pin in the middle sits on the right spot."
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="h-full w-full"
+        role="region"
+        aria-label="Map. Move it until the pin in the middle sits on the right spot."
+      />
+      {/* Until Google's map is drawn, the same grey pulse as the other map's loading box. */}
+      {!ready && <div className="absolute inset-0 bg-muted animate-pulse" />}
+    </>
   );
 }
