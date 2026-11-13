@@ -236,7 +236,7 @@ export default function CheckoutScreen() {
           </View>
           {deliveryFee > 0 && (
             <Text style={styles.orderItemQty}>
-              Add PKR {(FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(0)} more for free delivery.
+              Add PKR {Math.ceil(FREE_DELIVERY_THRESHOLD - totalPrice)} more for free delivery.
             </Text>
           )}
           <View style={styles.divider} />

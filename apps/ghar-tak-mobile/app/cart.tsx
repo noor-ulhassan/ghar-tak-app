@@ -91,6 +91,7 @@ export default function CartScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
+    qtyBtnDisabled: { opacity: 0.5 },
     qtyText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground, minWidth: 20, textAlign: "center" as const },
     deleteBtn: { padding: 6 },
     summaryBox: {
@@ -157,11 +158,13 @@ export default function CartScreen() {
                 </Pressable>
                 <Text style={styles.qtyText}>{item.quantity}</Text>
                 <Pressable
-                  style={styles.qtyBtn}
+                  style={[styles.qtyBtn, item.quantity >= item.product.stock && styles.qtyBtnDisabled]}
                   onPress={async () => {
                     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     updateQuantity(item.product.id, item.quantity + 1);
                   }}
+                  // As in the website's cart: no more than the shop has.
+                  disabled={item.quantity >= item.product.stock}
                 >
                   <Feather name="plus" size={14} color={colors.foreground} />
                 </Pressable>
@@ -189,7 +192,7 @@ export default function CartScreen() {
             </View>
             {deliveryFee > 0 && (
               <Text style={styles.summaryLabel}>
-                Add PKR {(FREE_DELIVERY_THRESHOLD - totalPrice).toFixed(0)} more for free delivery.
+                Add PKR {Math.ceil(FREE_DELIVERY_THRESHOLD - totalPrice)} more for free delivery.
               </Text>
             )}
             <View style={styles.divider} />

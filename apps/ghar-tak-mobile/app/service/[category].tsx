@@ -15,7 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LoadError, LoadingBlock } from "@/components/LoadState";
 import { NearbyScopeLine, NoneNearby } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
-import { useNearbyFilter, useShowAll } from "@/hooks/useNearby";
+import { useLocation } from "@/hooks/useLocation";
+import { keepPreviousList, useNearbyFilter, useShowAll } from "@/hooks/useNearby";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useData } from "@/context/DataContext";
 import { ApiError } from "@/lib/api";
@@ -58,11 +59,17 @@ export default function ServiceCategoryScreen() {
   // With a precise location the server sends only those that reach it, nearest first.
   const { showAll, setShowAll } = useShowAll();
   const { point, filterPoint: nearPoint, approximate } = useNearbyFilter();
+  // Held until the location is known: asking for every provider, then only the near ones,
+  // would load twice and flash.
+  const locating = useLocation().loading;
   const filterPoint = showAll ? null : nearPoint;
   const query = useQuery({
     queryKey: ["providers", "category", category, filterPoint?.lat, filterPoint?.lng],
     queryFn: ({ signal }) => fetchProviderList({ category, near: filterPoint }, signal),
-    enabled: !!category,
+    enabled: !!category && !locating,
+    placeholderData: (previous) => keepPreviousList(previous),
+    // Offline, TanStack would pause the request and spin forever; apiGet reports it as an error.
+    networkMode: "always",
   });
 
   const rows = useMemo<Row[]>(() => {
@@ -160,10 +167,11 @@ export default function ServiceCategoryScreen() {
   }));
 
   const renderBody = () => {
-    if (query.isPending && query.fetchStatus !== "idle") {
+    if (locating || (query.isPending && query.fetchStatus !== "idle")) {
       return <LoadingBlock label={filterPoint ? `Finding ${nameLower} near you…` : "Loading providers…"} />;
     }
-    if (query.isError) {
+    // A failed refresh keeps the list it already has.
+    if (query.isError && !query.data) {
       return (
         <LoadError
           title="Couldn't load this category"

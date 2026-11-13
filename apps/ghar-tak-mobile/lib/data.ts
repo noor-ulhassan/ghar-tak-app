@@ -1,5 +1,5 @@
 import type { Feather } from "@expo/vector-icons";
-import { formatDistance, providerDistance, type Coords } from "@workspace/geo";
+import { DEFAULT_DELIVERY_RADIUS_KM, formatDistance, providerDistance, type Coords } from "@workspace/geo";
 import type { ComponentProps } from "react";
 
 // The app's catalogue types. lib/db.ts maps the Ghar Tak API's providers, products,
@@ -48,6 +48,8 @@ export interface Product {
   name: string;
   /** PKR. */
   price: number;
+  /** How many the shop has. */
+  stock: number;
   category: string;
   imageUrl: string;
   description?: string;
@@ -73,9 +75,6 @@ export interface ServiceCategory {
 }
 
 export type FeatherIconName = ComponentProps<typeof Feather>["name"];
-
-/** The radius the server uses when a provider has not set one (@workspace/geo). */
-export const DEFAULT_DELIVERY_RADIUS_KM = 5;
 
 export function deliveryRadiusLabel(radiusKm: number | null): string {
   return `Delivers within ${radiusKm ?? DEFAULT_DELIVERY_RADIUS_KM} km`;

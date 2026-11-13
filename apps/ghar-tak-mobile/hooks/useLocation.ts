@@ -9,9 +9,10 @@ import {
   type ChooseHow,
   type DeviceFix,
   type LocationSource,
+  type LocationStatus,
 } from "@/lib/location";
 
-export type { ChooseHow, DeviceFix, LocationSource };
+export type { ChooseHow, DeviceFix, LocationSource, LocationStatus };
 
 interface UseLocationReturn {
   location: Coords | null;
@@ -21,6 +22,8 @@ interface UseLocationReturn {
   error: string | null;
   /** True while the saved location is being read, or the first device request is still open. */
   loading: boolean;
+  /** "loading" (reading storage), "locating" (first device request open), "ready" or "failed". */
+  status: LocationStatus;
   hasRealLocation: boolean;
   chooseLocation: (point: Coords, how: ChooseHow) => void;
   /** Asks the device where it is. It doesn't save: pass the result to chooseLocation. */
@@ -41,6 +44,7 @@ export function useLocation(): UseLocationReturn {
     place: saved?.place ?? null,
     error,
     loading: status === "loading" || status === "locating",
+    status,
     hasRealLocation: saved !== null,
     chooseLocation,
     locateDevice,

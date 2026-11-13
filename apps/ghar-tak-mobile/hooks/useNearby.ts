@@ -11,6 +11,16 @@ import { fetchProviderList } from "@/lib/db";
 // About 11 m: a GPS reading that moves a little keeps the same lists.
 const round = (value: number) => Math.round(value * 1e4) / 1e4;
 
+type ProviderList = Awaited<ReturnType<typeof fetchProviderList>>;
+
+/**
+ * The near-me and category queries' placeholder: a new pin keeps the last list on screen until
+ * the new one arrives, rather than a spinner. An empty one isn't kept: it would flash "none here".
+ */
+export function keepPreviousList(previous: ProviderList | undefined) {
+  return previous && (previous.stores.length > 0 || previous.serviceProviders.length > 0) ? previous : undefined;
+}
+
 /** Where the customer is, for distances. Null until a location is known, however rough. */
 export function useCustomerPoint(): Coords | null {
   const { location, hasRealLocation } = useLocation();
@@ -51,21 +61,32 @@ export function useShowAll() {
  */
 export function useNearbyCatalog(showAll: boolean) {
   const { point, filterPoint: nearPoint, approximate } = useNearbyFilter();
+  const locating = useLocation().loading;
   const filterPoint = showAll ? null : nearPoint;
   const catalog = useData();
   const near = useQuery({
     queryKey: ["providers", "near", filterPoint?.lat, filterPoint?.lng],
     queryFn: ({ signal }) => fetchProviderList({ near: filterPoint }, signal),
     enabled: filterPoint !== null,
+    placeholderData: (previous) => keepPreviousList(previous),
+    // Offline, TanStack would pause the request and spin forever; apiGet already reports an
+    // unreachable server as an error, with Retry.
+    networkMode: "always",
   });
 
+  // Until the location is known, nothing is listed: every shop, then only the near ones, would flash.
   const stores = useMemo(
-    () => (filterPoint ? (near.data?.stores ?? []) : nearestFirst(catalog.stores, point)),
-    [filterPoint, near.data, catalog.stores, point],
+    () => (locating ? [] : filterPoint ? (near.data?.stores ?? []) : nearestFirst(catalog.stores, point)),
+    [locating, filterPoint, near.data, catalog.stores, point],
   );
   const serviceProviders = useMemo(
-    () => (filterPoint ? (near.data?.serviceProviders ?? []) : nearestFirst(catalog.serviceProviders, point)),
-    [filterPoint, near.data, catalog.serviceProviders, point],
+    () =>
+      locating
+        ? []
+        : filterPoint
+          ? (near.data?.serviceProviders ?? [])
+          : nearestFirst(catalog.serviceProviders, point),
+    [locating, filterPoint, near.data, catalog.serviceProviders, point],
   );
 
   const filtering = filterPoint !== null;
@@ -75,15 +96,19 @@ export function useNearbyCatalog(showAll: boolean) {
     approximate,
     stores,
     serviceProviders,
-    /** The near-me request; when not filtering, CatalogNotice covers the catalogue instead. */
+    /**
+     * The near-me request, also loading while the location is still being found. When not
+     * filtering (and not locating), CatalogNotice covers the catalogue instead.
+     */
     near: {
-      loading: filtering && near.isPending,
+      loading: locating || (filtering && near.isPending),
       // A failed refresh keeps the list it already has.
       error: filtering && near.isError && !near.data ? near.error : null,
       retry: () => void near.refetch(),
       retrying: near.isFetching,
     },
-    refreshing: catalog.refreshing || (filtering && near.isRefetching),
+    // A new pin's request shows the last list, not the pull-to-refresh spinner.
+    refreshing: catalog.refreshing || (filtering && near.isRefetching && !near.isPlaceholderData),
     refresh: async () => {
       await Promise.all([catalog.refresh(), filtering ? near.refetch() : null]);
     },

@@ -39,6 +39,7 @@ interface ApiProduct {
   name: string;
   description: string | null;
   price: number | string;
+  stock: number;
   imageUrl: string | null;
   category: string | null;
 }
@@ -158,6 +159,7 @@ export async function fetchProducts(providerId: string, signal?: AbortSignal): P
     id: p.id,
     name: p.name,
     price: numberOrNull(p.price) ?? 0,
+    stock: numberOrNull(p.stock) ?? 0,
     category: p.category ?? "",
     imageUrl: p.imageUrl ?? "",
     description: p.description ?? "",

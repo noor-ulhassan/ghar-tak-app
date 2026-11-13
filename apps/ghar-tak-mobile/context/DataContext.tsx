@@ -44,13 +44,28 @@ const DataContext = createContext<DataContextType>({
   refresh: async () => {},
 });
 
+/** Every entry has an id and a name; stores and providers also a location, which the screens read unchecked. */
+function isEntry(item: unknown, withLocation: boolean): boolean {
+  if (!item || typeof item !== "object") return false;
+  const { id, name, location } = item as { id?: unknown; name?: unknown; location?: unknown };
+  return (
+    typeof id === "string" &&
+    typeof name === "string" &&
+    (!withLocation || (typeof location === "object" && location !== null))
+  );
+}
+
+/** A saved copy the screens can use. One broken entry could crash them, so then none of it is used. */
 function isCatalog(value: unknown): value is Catalog {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<Catalog>;
   return (
     Array.isArray(candidate.stores) &&
     Array.isArray(candidate.serviceCategories) &&
-    Array.isArray(candidate.serviceProviders)
+    Array.isArray(candidate.serviceProviders) &&
+    candidate.stores.every((store) => isEntry(store, true)) &&
+    candidate.serviceCategories.every((category) => isEntry(category, false)) &&
+    candidate.serviceProviders.every((provider) => isEntry(provider, true))
   );
 }
 

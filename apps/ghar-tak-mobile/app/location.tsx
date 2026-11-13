@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { CITIES, CITY_ACCURACY_M, type Coords } from "@workspace/geo";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -11,11 +11,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadingBlock } from "@/components/LoadState";
 import LocationMap, { HAS_MAP, type MapSpot } from "@/components/LocationMap";
+import { LINK_SLOP } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
 import { useLocation } from "@/hooks/useLocation";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -39,11 +42,19 @@ const STREET_DELTA = 0.005;
 const DEVICE_DELTA = 0.003;
 const CITY_DELTA = 0.15;
 const START_DELTA = 0.08;
+// The map's height: tall enough to place the pin, short enough to leave room on a small phone.
+const MAP_HEIGHT = 260;
+const MAP_SHARE_OF_WINDOW = 0.4;
 
 /** As the database keeps it: 7 decimals (about 1 cm), longitude wrapped into -180..180. */
 function clean(point: Coords): Coords {
   const lng = ((((point.lng + 180) % 360) + 360) % 360) - 180;
   return { lat: Math.round(point.lat * 1e7) / 1e7, lng: Math.round(lng * 1e7) / 1e7 };
+}
+
+/** Where the map opens: the saved location, or all of Lahore. */
+function startAt(location: Coords | null): MapSpot {
+  return location ? { point: location, delta: STREET_DELTA } : { point: LAHORE, delta: START_DELTA };
 }
 
 // Without a map (the web build) the only other way to choose is a city.
@@ -77,22 +88,36 @@ function accuracyNote(metres: number | null): string {
 export default function LocationScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
-  const { location, chooseLocation, locateDevice } = useLocation();
+  const { location, status, chooseLocation, locateDevice } = useLocation();
+  const savedLoading = status === "loading";
+  const mapHeight = Math.min(MAP_HEIGHT, Math.round(windowHeight * MAP_SHARE_OF_WINDOW));
 
-  // Read once: a location saved while this screen is open doesn't move the map under the person.
-  const [start] = useState<MapSpot>(() =>
-    location ? { point: location, delta: STREET_DELTA } : { point: LAHORE, delta: START_DELTA },
-  );
-  const [point, setPoint] = useState<Coords | null>(() => (location ? clean(location) : null));
+  // Read once the saved location has loaded: one saved while this screen is open doesn't move
+  // the map under the person. On a web reload or a deep link the screen opens before it loads.
+  const [start, setStart] = useState<MapSpot | null>(() => (savedLoading ? null : startAt(location)));
+  const [point, setPoint] = useState<Coords | null>(() => (!savedLoading && location ? clean(location) : null));
   const [origin, setOrigin] = useState<PointOrigin>({ kind: "initial" });
   const [target, setTarget] = useState<MapSpot | null>(null);
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // The phone won't show the permission prompt again: only its settings can allow location.
+  const [needsSettings, setNeedsSettings] = useState(false);
+  // Counts the person's choices, so a "Use my current location" answer that arrives after they
+  // picked a city or moved the map doesn't replace it.
+  const choice = useRef(0);
 
-  // iOS has no live regions, so the note is read out when it appears.
   useEffect(() => {
-    if (note) AccessibilityInfo.announceForAccessibility(note);
+    if (savedLoading || start) return;
+    setStart(startAt(location));
+    if (location && origin.kind === "initial") setPoint(clean(location));
+  }, [savedLoading, start, location, origin.kind]);
+
+  // iOS has no live regions, so the note is read out when it appears. TalkBack reads the
+  // live region by itself.
+  useEffect(() => {
+    if (note && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(note);
   }, [note]);
 
   const close = () => {
@@ -100,21 +125,36 @@ export default function LocationScreen() {
     else router.replace("/");
   };
 
+  const clearNote = () => {
+    setNote(null);
+    setNeedsSettings(false);
+  };
+
+  // The person chose something themselves: a device answer still on its way no longer counts.
+  const supersedeLocating = () => {
+    choice.current += 1;
+    setLocating(false);
+  };
+
   const pickCity = (city: (typeof CITIES)[number]) => {
+    supersedeLocating();
     const spot = clean(city);
     setOrigin({ kind: "jump", city: city.name });
     setPoint(spot);
     setTarget({ point: spot, delta: CITY_DELTA });
-    setNote(null);
+    clearNote();
   };
 
   const locateMe = async () => {
+    const request = ++choice.current;
     setLocating(true);
-    setNote(null);
+    clearNote();
     const fix = await locateDevice();
+    if (request !== choice.current) return;
     setLocating(false);
     if (!fix.ok) {
       setNote(failureNote(fix.reason));
+      setNeedsSettings(fix.reason === "denied" && !fix.canAskAgain && !isWeb);
       return;
     }
     const spot = clean(fix.point);
@@ -126,14 +166,21 @@ export default function LocationScreen() {
 
   const onMoveEnd = (center: Coords, byUser: boolean) => {
     if (byUser) {
+      supersedeLocating();
       setOrigin({ kind: "moved" });
       setPoint(clean(center));
-      setNote(null);
+      clearNote();
     } else if (origin.kind === "moved") {
       // The map settled again on its own (a resize, say): the pin is still its centre.
       setPoint(clean(center));
     }
     // Otherwise a city or device placement is ending its animation: it keeps its exact point.
+  };
+
+  const openInGoogleMaps = (spot: Coords) => {
+    Linking.openURL(`https://www.google.com/maps?q=${spot.lat},${spot.lng}`).catch(() => {
+      // No browser or maps app could open it; the coordinates are on screen.
+    });
   };
 
   const save = () => {
@@ -155,6 +202,7 @@ export default function LocationScreen() {
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -182,24 +230,18 @@ export default function LocationScreen() {
     },
     cities: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
     chip: {
+      minHeight: 44,
+      justifyContent: "center",
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 20,
+      borderRadius: 22,
       paddingHorizontal: 14,
-      paddingVertical: 8,
       backgroundColor: colors.background,
     },
     chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     chipText: { fontSize: 13, color: colors.foreground, fontFamily: "Inter_500Medium" },
     chipTextActive: { color: "#fff" },
-    panel: {
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: isWeb ? 24 : insets.bottom + 12,
-      gap: 8,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
+    panel: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 8 },
     locateBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -214,7 +256,17 @@ export default function LocationScreen() {
     readout: { flexDirection: "row", flexWrap: "wrap" as const, alignItems: "center", gap: 4 },
     small: { fontSize: 12, lineHeight: 17, color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
     link: { fontSize: 12, lineHeight: 17, color: colors.primary, fontFamily: "Inter_600SemiBold" },
-    footer: { flexDirection: "row", gap: 10, marginTop: 4 },
+    settingsBtn: { alignSelf: "flex-start" as const, minHeight: 44, justifyContent: "center" },
+    footer: {
+      flexDirection: "row",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: isWeb ? 24 : insets.bottom + 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
     cancelBtn: {
       flex: 1,
       borderWidth: 1,
@@ -231,110 +283,144 @@ export default function LocationScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable style={styles.closeBtn} onPress={close} accessibilityRole="button" accessibilityLabel="Cancel">
-          <Feather name="x" size={20} color={colors.foreground} />
-        </Pressable>
-        <Text style={styles.title} accessibilityRole="header">
-          Set your location
-        </Text>
-      </View>
-      <Text style={styles.intro}>
-        {HAS_MAP
-          ? "We list the shops and services that reach this spot. Pick your city, then move the map to your street."
-          : "We list the shops and services that reach this spot. Pick your city, or use your current location."}
-      </Text>
-
-      <View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cities}>
-          {CITIES.map((city) => {
-            const active = pickedCity === city.name;
-            return (
-              <Pressable
-                key={city.name}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => pickCity(city)}
-                accessibilityRole="button"
-                accessibilityLabel={`Go to ${city.name}`}
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{city.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      <LocationMap start={start} target={target} onMoveEnd={onMoveEnd} />
-
-      <View style={styles.panel}>
-        <Pressable
-          style={styles.locateBtn}
-          onPress={() => void locateMe()}
-          disabled={locating}
-          accessibilityRole="button"
-          accessibilityLabel="Use my current location"
-          accessibilityState={{ disabled: locating, busy: locating }}
-        >
-          {locating ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Feather name="crosshair" size={16} color={colors.foreground} />
-          )}
-          <Text style={styles.locateText}>{locating ? "Finding your location…" : "Use my current location"}</Text>
-        </Pressable>
-
-        {point ? (
-          <View style={styles.readout}>
-            <Text style={styles.small}>
-              Pin at {point.lat.toFixed(5)}, {point.lng.toFixed(5)} ·
-            </Text>
-            <Pressable
-              onPress={() => void Linking.openURL(`https://www.google.com/maps?q=${point.lat},${point.lng}`)}
-              accessibilityRole="link"
-              accessibilityLabel="Check the pin on Google Maps"
-              hitSlop={6}
-            >
-              <Text style={styles.link}>Check on Google Maps</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Text style={styles.small}>
-            {HAS_MAP
-              ? "No pin yet: move the map to the right spot."
-              : "No location yet: pick your city or use your current location."}
-          </Text>
-        )}
-
-        {note ? (
-          <Text style={styles.small} accessibilityLiveRegion="polite">
-            {note}
-          </Text>
-        ) : null}
-        {pickedCity ? (
-          <Text style={styles.small}>
-            {`With just the city, every shop is listed, nearest to the middle of ${pickedCity} first. `}
-            {HAS_MAP
-              ? "Move the map to your street to see exactly who delivers to you."
-              : "Use your current location to see exactly who delivers to you."}
-          </Text>
-        ) : null}
-
-        <View style={styles.footer}>
-          <Pressable style={styles.cancelBtn} onPress={close} accessibilityRole="button" accessibilityLabel="Cancel">
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
+      {/* Everything above the buttons scrolls, so they stay on screen on a small phone or with
+          large text. The map takes its own pans: Android's map asks its parents not to scroll
+          (react-native-maps MapView.dispatchTouchEvent), and on iOS the map's gestures win. */}
+      <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
           <Pressable
-            style={[styles.saveBtn, !point && styles.saveBtnDisabled]}
-            onPress={save}
-            disabled={!point}
+            style={styles.closeBtn}
+            onPress={close}
             accessibilityRole="button"
-            accessibilityLabel="Use this location"
-            accessibilityState={{ disabled: !point }}
+            accessibilityLabel="Close"
+            hitSlop={5}
           >
-            <Text style={styles.saveText}>Use this location</Text>
+            <Feather name="x" size={20} color={colors.foreground} />
           </Pressable>
+          <Text style={styles.title} accessibilityRole="header">
+            Set your location
+          </Text>
         </View>
+        <Text style={styles.intro}>
+          {HAS_MAP
+            ? "We list the shops and services that reach this spot. Pick your city, then move the map to your street."
+            : "We list the shops and services that reach this spot. Pick your city, or use your current location."}
+        </Text>
+
+        {start ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cities}>
+              {CITIES.map((city) => {
+                const active = pickedCity === city.name;
+                return (
+                  <Pressable
+                    key={city.name}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => pickCity(city)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Go to ${city.name}`}
+                    accessibilityState={{ selected: active }}
+                    hitSlop={{ top: 2, bottom: 2 }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{city.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={{ height: mapHeight }}>
+              <LocationMap start={start} target={target} onMoveEnd={onMoveEnd} />
+            </View>
+
+            <View style={styles.panel}>
+              <Pressable
+                style={styles.locateBtn}
+                onPress={() => void locateMe()}
+                disabled={locating}
+                accessibilityRole="button"
+                accessibilityLabel="Use my current location"
+                accessibilityState={{ disabled: locating, busy: locating }}
+              >
+                {locating ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Feather name="crosshair" size={16} color={colors.foreground} />
+                )}
+                <Text style={styles.locateText}>{locating ? "Finding your location…" : "Use my current location"}</Text>
+              </Pressable>
+
+              {point ? (
+                <View style={styles.readout}>
+                  <Text style={styles.small}>
+                    Pin at {point.lat.toFixed(5)}, {point.lng.toFixed(5)} ·
+                  </Text>
+                  <Pressable
+                    onPress={() => openInGoogleMaps(point)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Check on Google Maps"
+                    accessibilityHint="Opens the pin in Google Maps"
+                    hitSlop={LINK_SLOP}
+                  >
+                    <Text style={styles.link}>Check on Google Maps</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Text style={styles.small}>
+                  {HAS_MAP
+                    ? "No pin yet: move the map to the right spot."
+                    : "No location yet: pick your city or use your current location."}
+                </Text>
+              )}
+
+              {note ? (
+                <Text style={styles.small} accessibilityLiveRegion="polite">
+                  {note}
+                </Text>
+              ) : null}
+              {needsSettings ? (
+                <Pressable
+                  style={styles.settingsBtn}
+                  onPress={() => {
+                    Linking.openSettings().catch(() => {
+                      // The note above already says where to turn it on.
+                    });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open settings"
+                  hitSlop={{ left: 8, right: 8, top: 2, bottom: 2 }}
+                >
+                  <Text style={styles.link}>Open settings</Text>
+                </Pressable>
+              ) : null}
+              {pickedCity ? (
+                <Text style={styles.small}>
+                  {`With just the city, every shop is listed, nearest to the middle of ${pickedCity} first. `}
+                  {HAS_MAP
+                    ? "Move the map to your street to see exactly who delivers to you."
+                    : "Use your current location to see exactly who delivers to you."}
+                </Text>
+              ) : null}
+            </View>
+          </>
+        ) : (
+          <LoadingBlock label="Loading your location…" />
+        )}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <Pressable style={styles.cancelBtn} onPress={close} accessibilityRole="button" accessibilityLabel="Cancel">
+          <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.saveBtn, !point && styles.saveBtnDisabled]}
+          onPress={save}
+          disabled={!point}
+          accessibilityRole="button"
+          accessibilityLabel="Use this location"
+          accessibilityState={{ disabled: !point }}
+        >
+          <Text style={styles.saveText}>Use this location</Text>
+        </Pressable>
       </View>
     </View>
   );

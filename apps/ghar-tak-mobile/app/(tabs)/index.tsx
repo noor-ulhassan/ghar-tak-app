@@ -342,7 +342,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           {point ? <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} /> : null}
-          {filterPoint ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />}
+          {filterPoint || near.loading ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />}
           {filterPoint && !near.loading && !near.error && firstStores.length === 0 ? (
             <NoneNearby
               message="No stores deliver to your location yet."

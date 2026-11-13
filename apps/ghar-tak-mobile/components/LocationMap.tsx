@@ -1,8 +1,8 @@
-import { Feather } from "@expo/vector-icons";
-import type { Coords } from "@workspace/geo";
+import { distanceKm, type Coords } from "@workspace/geo";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import MapView, { PROVIDER_GOOGLE, type Region } from "react-native-maps";
+import MapView, { PROVIDER_GOOGLE, type Details, type Region } from "react-native-maps";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -35,10 +35,13 @@ const toRegion = ({ point, delta }: MapSpot): Region => ({
 });
 
 const ANIMATION_MS = 600;
+// A zoom button, a tap or the map changing size keeps the centre (give or take rounding),
+// so only a centre that moved further than this can be the person's move.
+const MIN_MOVE_M = 2;
 
 /**
  * A map with a fixed pin drawn over its middle: the person moves the map under the pin.
- * Android draws Google Maps, iOS Apple Maps.
+ * Android draws Google Maps, iOS Apple Maps. It fills its parent, which sets the height.
  */
 export default function LocationMap({ start, target, onMoveEnd }: LocationMapProps) {
   const colors = useColors();
@@ -48,12 +51,17 @@ export default function LocationMap({ start, target, onMoveEnd }: LocationMapPro
   // A target asked for before the map could animate.
   const pending = useRef<MapSpot | null>(null);
   // Apple Maps never reports `isGesture` (react-native-maps fills it in for Google Maps only),
-  // so a touch on the map since the last programmatic move also counts as the person's move.
-  const touched = useRef(false);
+  // so a finger on the map while it moves also marks the move as the person's.
+  const touching = useRef(false);
+  const touchedThisMove = useRef(false);
+  // The last centre the map reported, to tell a real move from one that kept the centre.
+  const lastCenter = useRef<Coords>(start.point);
+  // Counts region events, so a centre read late (Android) gives way to a newer move.
+  const regionEvents = useRef(0);
 
   useEffect(() => {
     if (!target) return;
-    touched.current = false;
+    touchedThisMove.current = false;
     if (!ready.current) {
       pending.current = target;
       return;
@@ -61,12 +69,47 @@ export default function LocationMap({ start, target, onMoveEnd }: LocationMapPro
     mapRef.current?.animateToRegion(toRegion(target), ANIMATION_MS);
   }, [target]);
 
+  const onRegionChange = () => {
+    regionEvents.current += 1;
+    if (touching.current) touchedThisMove.current = true;
+  };
+
+  const onRegionChangeComplete = async (region: Region, details: Details) => {
+    const event = ++regionEvents.current;
+    const byGesture = details?.isGesture === true || touchedThisMove.current || touching.current;
+    touchedThisMove.current = false;
+
+    let center: Coords = { lat: region.latitude, lng: region.longitude };
+    if (Platform.OS === "android") {
+      // Google Maps reports the middle of the visible bounds (OnRegionChangeEvent uses
+      // bounds.getCenter()), which zoomed out is metres to kilometres from the camera's
+      // target, the point under the pin.
+      try {
+        const camera = await mapRef.current?.getCamera();
+        if (camera) center = { lat: camera.center.latitude, lng: camera.center.longitude };
+      } catch {
+        // Keep the region's centre.
+      }
+      if (event !== regionEvents.current) return;
+    }
+
+    const moved = distanceKm(lastCenter.current, center) * 1000 > MIN_MOVE_M;
+    lastCenter.current = center;
+    onMoveEnd(center, byGesture && moved);
+  };
+
+  const touchEnded = () => {
+    touching.current = false;
+  };
+
   return (
     <View
       style={styles.frame}
       onTouchStart={() => {
-        touched.current = true;
+        touching.current = true;
       }}
+      onTouchEnd={touchEnded}
+      onTouchCancel={touchEnded}
       accessible
       accessibilityLabel="Map with a pin in the middle"
       accessibilityHint="Move the map so the pin sits on your home, or use the buttons below."
@@ -86,13 +129,16 @@ export default function LocationMap({ start, target, onMoveEnd }: LocationMapPro
           pending.current = null;
           if (next) mapRef.current?.animateToRegion(toRegion(next), ANIMATION_MS);
         }}
-        onRegionChangeComplete={(region, details) => {
-          onMoveEnd({ lat: region.latitude, lng: region.longitude }, details?.isGesture === true || touched.current);
-        }}
+        onRegionChange={onRegionChange}
+        onRegionChangeComplete={(region, details) => void onRegionChangeComplete(region, details)}
       />
       {/* Drawn over the map, not a Marker: the map moves under it, so its tip is always the centre. */}
       <View pointerEvents="none" style={styles.pin}>
-        <Feather name="map-pin" size={PIN_SIZE} color={colors.primary} />
+        <Svg width={PIN_SIZE} height={PIN_SIZE} viewBox="0 0 24 24">
+          {/* Feather's map-pin, filled: its tip is exactly at (12, 23). */}
+          <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" fill={colors.primary} />
+          <Circle cx={12} cy={10} r={3} fill={colors.primaryForeground} />
+        </Svg>
       </View>
     </View>
   );
@@ -101,13 +147,13 @@ export default function LocationMap({ start, target, onMoveEnd }: LocationMapPro
 const PIN_SIZE = 40;
 
 const styles = StyleSheet.create({
-  frame: { flex: 1, minHeight: 220, overflow: "hidden" },
+  frame: { flex: 1, overflow: "hidden" },
   pin: {
     position: "absolute",
     left: "50%",
     top: "50%",
     marginLeft: -PIN_SIZE / 2,
-    // The tip of Feather's map-pin is 23/24 of the way down the icon.
-    marginTop: -Math.round((PIN_SIZE * 23) / 24),
+    // Puts the tip, 23/24 of the way down, on the map's centre.
+    marginTop: -(PIN_SIZE * 23) / 24,
   },
 });

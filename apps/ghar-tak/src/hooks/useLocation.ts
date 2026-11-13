@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import type { Coords } from '@workspace/geo';
+import { CITY_ACCURACY_M, type Coords } from '@workspace/geo';
 import type { Location } from '@/lib/types';
 
 const STORAGE_KEY = 'ghar-tak:user-location';
@@ -76,11 +76,17 @@ function readSaved(): Saved | null {
     // Locations saved before pinning existed have no source. They were often a laptop
     // guessing from its internet connection, so the device is asked again instead.
     if (source !== 'device' && source !== 'chosen') return null;
+    const place = typeof parsed?.place === 'string' && parsed.place ? parsed.place : null;
     return {
       location: { lat, lng, address: LABELS[source] },
       source,
-      accuracyM: typeof parsed?.accuracyM === 'number' && Number.isFinite(parsed.accuracyM) ? parsed.accuracyM : null,
-      place: typeof parsed?.place === 'string' && parsed.place ? parsed.place : null,
+      // A city is never a precise pin, even if its accuracy was lost.
+      accuracyM: place
+        ? CITY_ACCURACY_M
+        : typeof parsed?.accuracyM === 'number' && Number.isFinite(parsed.accuracyM)
+          ? parsed.accuracyM
+          : null,
+      place,
       savedAt: typeof parsed?.savedAt === 'number' ? parsed.savedAt : 0,
     };
   } catch {

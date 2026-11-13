@@ -3,7 +3,7 @@ import { deliveryReach, formatDistance } from "@workspace/geo";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { openLocationScreen } from "@/components/NearbyScope";
+import { LINK_SLOP, openLocationScreen } from "@/components/NearbyScope";
 import { useColors } from "@/hooks/useColors";
 import { useLocation } from "@/hooks/useLocation";
 import { useNearbyFilter } from "@/hooks/useNearby";
@@ -43,7 +43,7 @@ export function DeliveryReach({ provider }: { provider: Store | ServiceProvider 
           <Text style={[styles.text, styles.muted]}>
             About {formatDistance(reach.distanceKm)} away · {place ? `you picked ${place}` : "your location is approximate"}.
           </Text>
-          <Pressable onPress={openLocationScreen} accessibilityRole="button" accessibilityLabel={check} hitSlop={6}>
+          <Pressable onPress={openLocationScreen} accessibilityRole="button" accessibilityLabel={check} hitSlop={LINK_SLOP}>
             <Text style={styles.link}>{check}</Text>
           </Pressable>
         </View>

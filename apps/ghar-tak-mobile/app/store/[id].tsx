@@ -184,6 +184,7 @@ export default function StoreDetailScreen() {
       gap: 4,
     },
     addBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    addBtnDisabled: { opacity: 0.5 },
     qtyControls: {
       flexDirection: "row",
       alignItems: "center",
@@ -263,6 +264,9 @@ export default function StoreDetailScreen() {
 
   const renderProductCard = (p: Product) => {
     const qty = getItemQty(p.id);
+    // Like the website's product card: none left and none in the cart means it can't be added.
+    const outOfStock = p.stock <= 0 && qty === 0;
+    const atStock = qty >= p.stock;
     return (
       <View key={p.id} style={styles.productCard}>
         <View style={styles.productInfo}>
@@ -270,7 +274,11 @@ export default function StoreDetailScreen() {
           <Text style={styles.productCategory}>{p.category}</Text>
           <Text style={styles.productPrice}>{formatPKR(p.price)}</Text>
         </View>
-        {qty === 0 ? (
+        {outOfStock ? (
+          <Pressable style={[styles.addBtn, styles.addBtnDisabled]} disabled accessibilityState={{ disabled: true }}>
+            <Text style={styles.addBtnText}>Out of Stock</Text>
+          </Pressable>
+        ) : qty === 0 ? (
           <Pressable
             style={styles.addBtn}
             onPress={async () => {
@@ -294,11 +302,12 @@ export default function StoreDetailScreen() {
             </Pressable>
             <Text style={styles.qtyText}>{qty}</Text>
             <Pressable
-              style={[styles.qtyBtn, styles.qtyBtnPrimary]}
+              style={[styles.qtyBtn, styles.qtyBtnPrimary, atStock && styles.addBtnDisabled]}
               onPress={async () => {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 updateQuantity(p.id, qty + 1);
               }}
+              disabled={atStock}
             >
               <Feather name="plus" size={13} color="#fff" />
             </Pressable>

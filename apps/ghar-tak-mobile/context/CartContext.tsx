@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Alert, Platform } from "react-native";
 
 import { Product } from "@/lib/data";
 import { deliveryFeeFor } from "@/lib/pricing";
@@ -35,10 +36,34 @@ interface CartContextValue {
   placeOrder: (name: string, address: string, phone: string) => Promise<Order>;
 }
 
-// v2: carts saved before the app read real shops held sample items priced in US dollars.
+// v2: carts and orders saved before the app read real shops held sample items priced in
+// US dollars, which would now read as rupees.
 const CART_KEY = "ghar_tak_cart_v2";
-const OLD_CART_KEY = "ghar_tak_cart";
-const ORDERS_KEY = "ghar_tak_orders";
+const ORDERS_KEY = "ghar_tak_orders_v2";
+const OLD_KEYS = ["ghar_tak_cart", "ghar_tak_orders"];
+
+/**
+ * No more than the shop has, like the website's cart. Items saved in a cart before stock was
+ * read have none, so they aren't limited until they are added again from the store.
+ */
+function withinStock(product: Product, quantity: number) {
+  return Number.isFinite(product.stock) ? Math.min(quantity, Math.max(product.stock, 0)) : quantity;
+}
+
+/** The website's "Start a new cart?" question; onConfirm runs when the customer agrees. */
+function confirmNewCart(fromShop: string, toShop: string, onConfirm: () => void) {
+  const title = "Start a new cart?";
+  const message = `Your cart has items from ${fromShop}. An order can only come from one store, so adding from ${toShop} will remove them.`;
+  if (Platform.OS === "web") {
+    // Alert shows no buttons on react-native-web.
+    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: "Keep my cart", style: "cancel" },
+    { text: "Start new cart", onPress: onConfirm },
+  ]);
+}
 
 const CartContext = createContext<CartContextValue>({
   items: [],
@@ -67,7 +92,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (cartJson) setItems(JSON.parse(cartJson));
         if (ordersJson) setOrders(JSON.parse(ordersJson));
-        AsyncStorage.removeItem(OLD_CART_KEY).catch(() => {});
+        AsyncStorage.multiRemove(OLD_KEYS).catch(() => {});
       } catch {}
       setLoaded(true);
     })();
@@ -80,16 +105,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  // One shop per cart, like the website: the delivery fee and the free-delivery threshold are a shop's.
   const addItem = useCallback((product: Product, storeName?: string) => {
+    const otherShop = items.find((i) => i.product.storeId !== product.storeId);
+    if (otherShop) {
+      if (withinStock(product, 1) === 0) return;
+      confirmNewCart(otherShop.storeName ?? "another store", storeName ?? "this store", () => {
+        void saveCart([{ product, quantity: 1, storeName }]);
+      });
+      return;
+    }
     setItems((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
+      const quantity = withinStock(product, (existing?.quantity ?? 0) + 1);
+      // The newest product details, so the cart's "+" uses today's stock; one now out of stock leaves.
       const next = existing
-        ? prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
-        : [...prev, { product, quantity: 1, storeName }];
+        ? prev
+            .map((i) => (i.product.id === product.id ? { ...i, product, quantity } : i))
+            .filter((i) => i.quantity > 0)
+        : quantity > 0
+          ? [...prev, { product, quantity, storeName }]
+          : prev;
       AsyncStorage.setItem(CART_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
-  }, []);
+  }, [items, saveCart]);
 
   const removeItem = useCallback((productId: string) => {
     setItems((prev) => {
@@ -103,7 +143,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => {
       const next = quantity <= 0
         ? prev.filter((i) => i.product.id !== productId)
-        : prev.map((i) => i.product.id === productId ? { ...i, quantity } : i);
+        : prev.map((i) => i.product.id === productId ? { ...i, quantity: withinStock(i.product, quantity) } : i);
       AsyncStorage.setItem(CART_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });

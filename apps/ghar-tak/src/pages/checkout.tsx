@@ -543,7 +543,7 @@ export default function CheckoutPage() {
 
             {subtotal < FREE_DELIVERY_THRESHOLD && (
               <p className="text-xs text-muted-foreground">
-                Add PKR {(FREE_DELIVERY_THRESHOLD - subtotal).toFixed(0)} more for free delivery.
+                Add PKR {Math.ceil(FREE_DELIVERY_THRESHOLD - subtotal)} more for free delivery.
               </p>
             )}
 

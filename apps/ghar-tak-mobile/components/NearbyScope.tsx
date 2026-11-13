@@ -9,6 +9,9 @@ import { useLocation } from "@/hooks/useLocation";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { ApiError } from "@/lib/api";
 
+/** A small text link is 17-18 high: this slop brings its touch area to at least 48. */
+export const LINK_SLOP = { top: 16, bottom: 16, left: 8, right: 8 };
+
 /** Opens the screen where the customer sets their location (app/location.tsx). */
 export function openLocationScreen() {
   router.push("/location");
@@ -128,7 +131,7 @@ export function NoneNearby({
 function LinkButton({ label, a11yLabel, onPress }: { label: string; a11yLabel?: string; onPress: () => void }) {
   const styles = useScopeStyles();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11yLabel ?? label} hitSlop={8}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11yLabel ?? label} hitSlop={LINK_SLOP}>
       <Text style={styles.link}>{label}</Text>
     </Pressable>
   );

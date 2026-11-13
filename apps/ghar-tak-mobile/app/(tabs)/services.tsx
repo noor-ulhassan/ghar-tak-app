@@ -27,8 +27,8 @@ export default function ServicesScreen() {
   const { serviceCategories, ready } = useData();
   const { showAll, setShowAll } = useShowAll();
   const { point, filterPoint, approximate, serviceProviders, near, refreshing, refresh } = useNearbyCatalog(showAll);
-  // The list itself, or null while a near-me request is loading or has failed.
-  const listReady = filterPoint ? !near.loading && !near.error : ready;
+  // The list itself, or null while the location or a near-me request is loading, or it failed.
+  const listReady = !near.loading && (filterPoint ? !near.error : ready);
 
   const styles = useThemedStyles(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -203,7 +203,7 @@ export default function ServicesScreen() {
                 {point ? <NearbyScopeLine showAll={showAll} approximate={approximate} onShowAll={setShowAll} /> : null}
               </View>
             )}
-            {filterPoint ? <NearRequestState near={near} what="service providers" /> : null}
+            {filterPoint || near.loading ? <NearRequestState near={near} what="service providers" /> : null}
           </View>
         }
         ListEmptyComponent={

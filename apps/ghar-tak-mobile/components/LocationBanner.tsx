@@ -63,7 +63,8 @@ export function LocationBanner() {
         onPress={openLocationScreen}
         accessibilityRole="button"
         accessibilityLabel={action === "Change" ? "Change location" : action}
-        hitSlop={6}
+        // About 29 high with its padding: the slop brings its touch area to 48.
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
       >
         <Text style={styles.buttonText}>{action}</Text>
       </Pressable>

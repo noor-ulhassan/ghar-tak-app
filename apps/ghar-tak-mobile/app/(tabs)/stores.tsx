@@ -32,8 +32,8 @@ export default function StoresScreen() {
   const { ready } = useData();
   const { showAll, setShowAll } = useShowAll();
   const { point, filterPoint, approximate, stores, near, refreshing, refresh } = useNearbyCatalog(showAll);
-  // The list itself, or null while a near-me request is loading or has failed.
-  const listReady = filterPoint ? !near.loading && !near.error : ready;
+  // The list itself, or null while the location or a near-me request is loading, or it failed.
+  const listReady = !near.loading && (filterPoint ? !near.error : ready);
   const { user } = useAuth();
   const { favouriteIds, toggleFavourite } = useFavorites();
 
@@ -245,7 +245,9 @@ export default function StoresScreen() {
           />
         }
         extraData={favouriteIds}
-        ListHeaderComponent={filterPoint ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />}
+        ListHeaderComponent={
+          filterPoint || near.loading ? <NearRequestState near={near} what="stores" /> : <CatalogNotice />
+        }
         ListEmptyComponent={
           !listReady ? undefined : filterPoint && !query.trim() ? (
             <NoneNearby

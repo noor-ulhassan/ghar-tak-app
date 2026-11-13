@@ -11,7 +11,10 @@ import { db, hasFirebaseConfig } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const ASYNC_STORAGE_KEY = "ghar_tak_guest_favourites";
+// v2: guest favourites saved before the app read real shops held sample ids (store1, sp1, ...)
+// that now belong to other, real shops.
+const ASYNC_STORAGE_KEY = "ghar_tak_guest_favourites_v2";
+const OLD_ASYNC_STORAGE_KEY = "ghar_tak_guest_favourites";
 
 // Favourites saved on the device are shared by every screen using this hook, so a
 // heart tapped on a store page shows on the Stores tab and the Favorites screen too
@@ -25,6 +28,7 @@ function loadLocalFavourites(): Promise<Set<string>> {
   if (!localLoad) {
     localLoad = (async () => {
       let ids = new Set<string>();
+      AsyncStorage.removeItem(OLD_ASYNC_STORAGE_KEY).catch(() => { /* ignore */ });
       try {
         const raw = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
         if (raw) ids = new Set(JSON.parse(raw) as string[]);
